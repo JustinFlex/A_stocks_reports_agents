@@ -58,6 +58,7 @@ def run(state: ReportState, context: WorkflowContext) -> ReportState:
         "根据以下量化输出与新闻摘要，生成 JSON，键包含：\n"
         "company_intro, industry_analysis, growth_analysis, financial_analysis, "
         "valuation_analysis, core_viewpoints。每段 120-200 字，保持事实严谨，勿虚构数据；"
+        "行业分析必须包含主要竞争对手及对比要点；适当引用新闻摘要中的来源信息。"
         "请严格输出单个 JSON 对象，不要包含额外文本或代码块。\n"
         f"Ticker: {ticker}, 公司: {company_name}\n"
         f"价格窗口: {state.get('current_price')} / {price_preview}\n"

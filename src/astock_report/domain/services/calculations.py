@@ -62,7 +62,8 @@ class AnomalyDetector:
 
         inc_df = _frame_from_statements(_dedup_statements(dataset.income_statements), keys=["revenue", "net_income"])
         if not inc_df.empty:
-            inc_df = inc_df.sort_values("period")
+            inc_df = inc_df.sort_values("period").tail(12).reset_index(drop=True)
+            # Limit anomaly scan to recent periods to avoid flooding the report
             for col in ["revenue", "net_income"]:
                 if col not in inc_df:
                     continue
@@ -71,7 +72,10 @@ class AnomalyDetector:
                     if pd.isna(val):
                         continue
                     if abs(val) >= 0.3:
-                        period = inc_df.iloc[idx]["period"]
+                        try:
+                            period = inc_df.loc[idx, "period"]
+                        except Exception:
+                            period = inc_df.iloc[-1]["period"] if not inc_df.empty else ""
                         flags["growth"].append(f"{col} changed {val:.1%} at {period}")
 
         net_margin = ratios.ratios.get("net_margin") if ratios and ratios.ratios else None
@@ -291,13 +295,19 @@ class RatioCalculator:
 
 
 class ValuationEngine:
-    """Aggregate multiple valuation methodologies (DCF, PE band, EV/EBITDA)."""
+    """Aggregate multiple valuation methodologies (DCF, PE band, EV/EBITDA, PB, EV/Sales)."""
 
-    def run(self, dataset: FinancialDataset, ratios: RatioSummary) -> ValuationBundle:
+    def run(
+        self,
+        dataset: FinancialDataset,
+        ratios: RatioSummary,
+        overrides: Optional[Dict[str, float]] = None,
+    ) -> ValuationBundle:
         # Extract latest facts needed for valuation
         inc_stmts = _dedup_statements(dataset.income_statements)
         bs_stmts = _dedup_statements(dataset.balance_sheets)
         cf_stmts = _dedup_statements(dataset.cash_flows)
+        overrides = overrides or {}
 
         inc_df = _frame_from_statements(inc_stmts, keys=["net_income", "ebitda", "revenue"]).sort_values("period")
         bs_df = _frame_from_statements(
@@ -306,6 +316,7 @@ class ValuationEngine:
                 "cash_and_equivalents",
                 "short_term_debt",
                 "long_term_debt",
+                "total_equity",
                 "shares_outstanding",
                 "price",
                 "market_cap",
@@ -325,9 +336,23 @@ class ValuationEngine:
 
         inc_ttm, _ = _ttm_from_df(inc_df, keys=["net_income", "ebitda", "revenue"])
         cf_ttm, _ = _ttm_from_df(cf_df, keys=["free_cash_flow", "operating_cash_flow", "capital_expenditures"])
+        net_margin_ratio = float("nan")
+        if ratios and ratios.ratios:
+            try:
+                net_margin_ratio = float(ratios.ratios.get("net_margin", float("nan")))
+            except Exception:
+                net_margin_ratio = float("nan")
 
         def g(d: Dict[str, float], key: str) -> float:
             return float(d.get(key)) if (d is not None and key in d and d[key] is not None) else float("nan")
+
+        def from_override(key: str) -> float:
+            """Prefer CLI/config overrides when provided."""
+            try:
+                value = overrides.get(key)
+            except Exception:
+                return float("nan")
+            return _to_float(value)
 
         # Inputs
         price = g(latest_bs, "price")
@@ -364,19 +389,19 @@ class ValuationEngine:
                 fcf = ocf - capex
 
         # Assumptions with dataset overrides if provided
-        wacc = g(latest_bs, "wacc")
-        if np.isnan(wacc):
-            wacc = 0.10
-        growth = g(latest_bs, "g")
-        if np.isnan(growth):
-            growth = 0.08
-        terminal_growth = g(latest_bs, "terminal_growth")
-        if np.isnan(terminal_growth):
-            terminal_growth = 0.03
-        years = g(latest_bs, "forecast_years")
-        if np.isnan(years) or years <= 0:
-            years = 5.0
-        n_years = int(years)
+        def pick_assumption(key: str, dataset_value: float, default_value: float) -> float:
+            override_value = from_override(key)
+            if not np.isnan(override_value):
+                return override_value
+            if not np.isnan(dataset_value):
+                return dataset_value
+            return default_value
+
+        wacc = pick_assumption("wacc", g(latest_bs, "wacc"), 0.10)
+        growth = pick_assumption("g", g(latest_bs, "g"), 0.08)
+        terminal_growth = pick_assumption("terminal_growth", g(latest_bs, "terminal_growth"), 0.03)
+        years = pick_assumption("forecast_years", g(latest_bs, "forecast_years"), 5.0)
+        n_years = max(int(round(years)), 1)
 
         valuation_methods: Dict[str, Dict[str, float]] = {}
 
@@ -431,21 +456,28 @@ class ValuationEngine:
             valuation_methods["dcf"] = method
 
         # PE band valuation (requires positive EPS/price)
-        if not (np.isnan(eps) or np.isnan(shares) or np.isnan(price)) and eps > 0 and price > 0:
+        pe_low = pick_assumption("pe_low", float("nan"), 10.0)
+        pe_high = pick_assumption("pe_high", float("nan"), 20.0)
+        if pe_low <= 0 or pe_high <= 0 or pe_low >= pe_high:
             pe_low, pe_high = 10.0, 20.0
+        if not (np.isnan(eps) or np.isnan(shares) or np.isnan(price)) and eps > 0 and price > 0:
             pe_mid = (pe_low + pe_high) / 2.0
             fair_value_pe = eps * pe_mid
             method = {
                 "fair_value": fair_value_pe,
                 "pe_low": pe_low,
                 "pe_high": pe_high,
+                "eps": eps,
             }
             method["upside"] = (fair_value_pe / price) - 1.0 if price > 0 else float("nan")
             valuation_methods["pe_band"] = method
 
         # EV/EBITDA valuation
-        if not (np.isnan(ebitda) or ebitda <= 0.0 or np.isnan(net_debt) or np.isnan(shares)):
+        ev_ebitda_low = pick_assumption("ev_ebitda_low", float("nan"), 6.0)
+        ev_ebitda_high = pick_assumption("ev_ebitda_high", float("nan"), 12.0)
+        if ev_ebitda_low <= 0 or ev_ebitda_high <= 0 or ev_ebitda_low >= ev_ebitda_high:
             ev_ebitda_low, ev_ebitda_high = 6.0, 12.0
+        if not (np.isnan(ebitda) or ebitda <= 0.0 or np.isnan(net_debt) or np.isnan(shares)):
             ev_ebitda_mid = (ev_ebitda_low + ev_ebitda_high) / 2.0
             implied_ev = ebitda * ev_ebitda_mid
             implied_equity = implied_ev - net_debt
@@ -454,10 +486,55 @@ class ValuationEngine:
                 "fair_value": fair_value_ev,
                 "ev_ebitda_low": ev_ebitda_low,
                 "ev_ebitda_high": ev_ebitda_high,
+                "ebitda": ebitda,
             }
             if not np.isnan(price):
                 method["upside"] = (fair_value_ev / price) - 1.0 if price > 0 else float("nan")
             valuation_methods["ev_ebitda"] = method
+
+        # PB band valuation (book value multiples)
+        pb_defaults = (0.4, 0.9) if not np.isnan(net_margin_ratio) and net_margin_ratio < 0 else (0.8, 1.5)
+        pb_low = pick_assumption("pb_low", float("nan"), pb_defaults[0])
+        pb_high = pick_assumption("pb_high", float("nan"), pb_defaults[1])
+        if pb_low <= 0 or pb_high <= 0 or pb_low >= pb_high:
+            pb_low, pb_high = pb_defaults
+        book_per_share = float("nan")
+        total_equity = g(latest_bs, "total_equity")
+        if not (np.isnan(total_equity) or np.isnan(shares) or shares == 0.0):
+            book_per_share = total_equity / shares
+        if not np.isnan(book_per_share) and book_per_share > 0:
+            pb_mid = (pb_low + pb_high) / 2.0
+            fair_value_pb = book_per_share * pb_mid
+            method = {
+                "fair_value": fair_value_pb,
+                "pb_low": pb_low,
+                "pb_high": pb_high,
+                "book_per_share": book_per_share,
+            }
+            if not np.isnan(price) and price > 0:
+                method["upside"] = (fair_value_pb / price) - 1.0
+            valuation_methods["pb_band"] = method
+
+        # EV/Sales valuation
+        sales_defaults = (0.2, 0.8) if not np.isnan(net_margin_ratio) and net_margin_ratio < 0 else (1.0, 2.0)
+        ev_sales_low = pick_assumption("ev_sales_low", float("nan"), sales_defaults[0])
+        ev_sales_high = pick_assumption("ev_sales_high", float("nan"), sales_defaults[1])
+        if ev_sales_low <= 0 or ev_sales_high <= 0 or ev_sales_low >= ev_sales_high:
+            ev_sales_low, ev_sales_high = sales_defaults
+        if not (np.isnan(revenue) or revenue <= 0.0 or np.isnan(net_debt) or np.isnan(shares) or shares == 0.0):
+            ev_sales_mid = (ev_sales_low + ev_sales_high) / 2.0
+            implied_ev = revenue * ev_sales_mid
+            implied_equity = implied_ev - net_debt
+            fair_value_sales = implied_equity / shares if shares > 0 else float("nan")
+            method = {
+                "fair_value": fair_value_sales,
+                "ev_sales_low": ev_sales_low,
+                "ev_sales_high": ev_sales_high,
+                "ttm_revenue": revenue,
+            }
+            if not np.isnan(price) and price > 0:
+                method["upside"] = (fair_value_sales / price) - 1.0
+            valuation_methods["ev_sales"] = method
 
         # Choose an intrinsic value (simple average of available methods)
         fair_values = [m.get("fair_value") for m in valuation_methods.values() if not np.isnan(m.get("fair_value", float("nan")))]

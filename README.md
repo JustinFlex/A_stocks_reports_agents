@@ -64,16 +64,22 @@ pip install -r requirements.txt
 
 You can keep these in a .env file (loaded via python-dotenv) or export them in your shell before running the CLI.
 
-## Quick Start
-1. Copy `.env.example` to `.env` and fill in TUSHARE/POE tokens (or export env vars directly).
-2. Prepare the SQLite database. If you already have staged financial data, place it at DB_PATH using the schema described in docs/architecture.md. Otherwise, the workflow will fall back to TuShare and cache.
-3. Run the CLI:
+## Quick Start (beginner friendly)
+1. Copy `.env.example` to `.env` and fill in `TUSHARE_API_KEY` / `POE_API_KEY` (or export env vars directly). Set proxies in `.env` if needed (`PROXY_URL`).
+2. Ensure Python 3.10+ is installed. In the repo root:
    ```bash
-   python -m astock_report.app.main generate 600000.SH --name "SPD Bank" --pdf --pdf-source html
-   # or batch
-   python -m astock_report.app.main batch 600000.SH 000001.SZ --pdf
+   python -m venv .venv
+   source .venv/bin/activate   # Windows: .venv\Scripts\activate
+   pip install -r requirements.txt
    ```
-4. The Markdown report is written to `reports/600000.SH.md` (and HTML at `reports/600000.SH.html`, PDF if pandoc is installed). Add `--json` to also persist the full workflow state payload for debugging. Use `--pdf-source md|html` to choose which artifact Pandoc converts.
+3. (Optional) Stage SQLite data at `D:\TushareData\fina_indicator_complete_data.db` (default DB path). If missing, the workflow will call TuShare on-demand and cache locally.
+4. Run a sample report (HTML is the primary deliverable; PDF optional if pandoc exists):
+   ```bash
+   PYTHONPATH=src python -m astock_report.app.main generate 600000.SH --name "SPD Bank" --json --pdf --pdf-source html
+   # or batch
+   PYTHONPATH=src python -m astock_report.app.main batch 600000.SH 000001.SZ
+   ```
+5. Outputs: `reports/<TICKER>.html` (with inline charts), `reports/<TICKER>.md`, and optional `_state.json` when `--json` is set. Charts are embedded in HTML for easy viewing; Markdown links to PNGs under `reports/charts/`.
 
 ## TuShare Resources
 - Local API docs, scripts, and offline cache live in `TushareAPI/` (see its README for layout).
@@ -115,7 +121,6 @@ PYTHONPATH=src python -m pytest -q
 ```
 
 ## Suggested Next Steps
-- Enhance citation checks and reviewer rules for stricter QA.
-- Add chart caching/themes and PDF styling.
-- Tighten CI (coverage thresholds, ruff/mypy gating).
-- Harden narrative JSON parsing so all sections (company/industry/growth/financial/valuation) are always populated; add QA-triggered retry when sections are missing.
+- Add NAV/peer-band valuation, multi-model weighting, and expose default DCF assumptions via config/CLI.
+- Ship integration smoke tests for TuShare/Poe, plus developer guides and TuShareAPI index scripts.
+- Polish chart fonts/themes and tighten CI (coverage + ruff/mypy gating).

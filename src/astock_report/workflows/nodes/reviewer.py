@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from astock_report.workflows.context import WorkflowContext
 from astock_report.workflows.state import ReportState
+from astock_report.workflows.nodes.llm_clean import clean_llm_output
 
 SYSTEM_PROMPT = "You are a meticulous equity research reviewer. Write in Chinese."
 
@@ -51,19 +52,21 @@ def run(state: ReportState, context: WorkflowContext) -> ReportState:
     ]
 
     try:
-        state["review_report"] = context.gemini.generate(
+        raw = context.gemini.generate(
             messages,
             web_search=False,
             thinking_budget=context.config.poe_thinking_budget,
         )
+        state["review_report"] = clean_llm_output(raw)
     except Exception as exc:  # pylint: disable=broad-except
         # One retry with slight backoff on transient errors
         try:
-            state["review_report"] = context.gemini.generate(
+            raw = context.gemini.generate(
                 messages,
                 web_search=False,
                 thinking_budget=context.config.poe_thinking_budget,
             )
+            state["review_report"] = clean_llm_output(raw)
         except Exception:
             errors.append(f"Reviewer failed: {exc}")
     return state

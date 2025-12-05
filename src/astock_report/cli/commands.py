@@ -69,6 +69,34 @@ def generate(
         help="Choose pdf source: md (Markdown) or html (HTML template)",
         case_sensitive=False,
     ),
+    # Valuation overrides
+    wacc: Optional[float] = typer.Option(None, "--wacc", help="Override WACC for DCF (e.g., 0.09)."),
+    growth: Optional[float] = typer.Option(None, "--growth", help="Override near-term FCF growth rate g (e.g., 0.07)."),
+    terminal_growth: Optional[float] = typer.Option(
+        None, "--terminal-growth", help="Override terminal growth gt for DCF (e.g., 0.03)."
+    ),
+    forecast_years: Optional[int] = typer.Option(None, "--forecast-years", help="Override DCF forecast years."),
+    pe_low: Optional[float] = typer.Option(None, "--pe-low", help="Lower bound for PE band valuation."),
+    pe_high: Optional[float] = typer.Option(None, "--pe-high", help="Upper bound for PE band valuation."),
+    ev_ebitda_low: Optional[float] = typer.Option(None, "--ev-ebitda-low", help="Lower bound for EV/EBITDA band."),
+    ev_ebitda_high: Optional[float] = typer.Option(None, "--ev-ebitda-high", help="Upper bound for EV/EBITDA band."),
+    pb_low: Optional[float] = typer.Option(None, "--pb-low", help="Lower bound for PB band valuation."),
+    pb_high: Optional[float] = typer.Option(None, "--pb-high", help="Upper bound for PB band valuation."),
+    ev_sales_low: Optional[float] = typer.Option(None, "--ev-sales-low", help="Lower bound for EV/Sales band."),
+    ev_sales_high: Optional[float] = typer.Option(None, "--ev-sales-high", help="Upper bound for EV/Sales band."),
+    # LLM overrides
+    news_web_search: Optional[bool] = typer.Option(
+        None, "--news-web-search/--no-news-web-search", help="Force enable/disable web_search for news node."
+    ),
+    qual_web_search: Optional[bool] = typer.Option(
+        None, "--qual-web-search/--no-qual-web-search", help="Force enable/disable web_search for qual node."
+    ),
+    news_thinking_budget: Optional[int] = typer.Option(
+        None, "--news-thinking-budget", help="Override thinking_budget for news Map/Reduce call."
+    ),
+    qual_thinking_budget: Optional[int] = typer.Option(
+        None, "--qual-thinking-budget", help="Override thinking_budget for qual research call."
+    ),
 ) -> None:
     """Run the LangGraph workflow for a single ticker and present the outcome."""
     if ctx.obj is None:
@@ -77,8 +105,42 @@ def generate(
     context: AppContext = ctx.obj
     console.rule(f"Generating report for {ticker}")
 
+    valuation_overrides = {
+        key: value
+        for key, value in {
+            "wacc": wacc,
+            "g": growth,
+            "terminal_growth": terminal_growth,
+            "forecast_years": forecast_years,
+            "pe_low": pe_low,
+            "pe_high": pe_high,
+            "ev_ebitda_low": ev_ebitda_low,
+            "ev_ebitda_high": ev_ebitda_high,
+            "pb_low": pb_low,
+            "pb_high": pb_high,
+            "ev_sales_low": ev_sales_low,
+            "ev_sales_high": ev_sales_high,
+        }.items()
+        if value is not None
+    }
+    llm_overrides = {
+        key: value
+        for key, value in {
+            "news_web_search": news_web_search,
+            "qual_web_search": qual_web_search,
+            "news_thinking_budget": news_thinking_budget,
+            "qual_thinking_budget": qual_thinking_budget,
+        }.items()
+        if value is not None
+    }
+
     with console.status("[bold cyan]Running workflow..."):
-        result: ReportState = context.workflow.run(ticker=ticker, company_name=name)
+        result: ReportState = context.workflow.run(
+            ticker=ticker,
+            company_name=name,
+            valuation_overrides=valuation_overrides or None,
+            llm_overrides=llm_overrides or None,
+        )
 
     if result.get("errors"):
         console.print("[bold red]Workflow completed with errors:[/bold red]")

@@ -30,6 +30,7 @@ def make_dataset() -> FinancialDataset:
             "short_term_debt": 150.0,
             "long_term_debt": 250.0,
             "shares_outstanding": 100.0,
+            "total_equity": 1000.0,
         },
     )
     cf_old = FinancialStatement(
@@ -59,6 +60,7 @@ def make_dataset() -> FinancialDataset:
             "cash_and_equivalents": 120.0,
             "short_term_debt": 160.0,
             "long_term_debt": 260.0,
+            "total_equity": 1100.0,
             "shares_outstanding": 100.0,
             "price": 15.0,
             # Provide DCF assumptions to demonstrate override
@@ -96,6 +98,8 @@ def test_valuation_engine_methods():
     assert "dcf" in vb.valuation_methods
     assert "pe_band" in vb.valuation_methods
     assert "ev_ebitda" in vb.valuation_methods
+    assert "pb_band" in vb.valuation_methods
+    assert "ev_sales" in vb.valuation_methods
 
     dcf_fv = vb.valuation_methods["dcf"]["fair_value"]
     # Roughly around ~20 per share for the configured inputs
@@ -107,3 +111,8 @@ def test_valuation_engine_methods():
     ev_fv = vb.valuation_methods["ev_ebitda"]["fair_value"]
     assert 19.0 < ev_fv < 22.0
 
+    pb_fv = vb.valuation_methods["pb_band"]["fair_value"]
+    assert 11.0 <= pb_fv <= 13.0
+
+    ev_sales_fv = vb.valuation_methods["ev_sales"]["fair_value"]
+    assert 13.0 < ev_sales_fv < 16.0

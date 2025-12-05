@@ -50,12 +50,13 @@
 <body>
   <header>
     <h1>{{ company_name or ticker }} 深度研究报告</h1>
-    <div class="meta">生成日期：{{ report_date }} ｜ 代码：{{ ticker }}</div>
+    <div class="meta">生成日期：{{ report_date }} ｜ 代码：{{ ticker }} ｜ 生成时间：{{ report_timestamp }}</div>
   </header>
   <main>
     <section class="section">
       <h2>核心观点</h2>
       <p>{{ core_viewpoints or '（待完善）' }}</p>
+      <p><strong>投资评级：</strong>{{ rating_text or '（待完善）' }}</p>
     </section>
 
     <div class="grid">
@@ -68,6 +69,24 @@
         <p>{{ industry_analysis or '（待完善）' }}</p>
       </section>
     </div>
+
+    <section class="section">
+      <h2>基础信息与股东结构</h2>
+      <p>行业：{{ basic_info.get('industry', '未知') }} ｜ 地区：{{ basic_info.get('area', '未知') }} ｜ 上市日期：{{ basic_info.get('list_date', '未知') }}</p>
+      <p>市场/交易所：{{ basic_info.get('market', '未知') }} / {{ basic_info.get('exchange', '未知') }}</p>
+      {% if holders %}
+      <table style="width:100%; border-collapse:collapse; margin-top:8px; color: var(--text);">
+        <thead><tr><th align="left">股东</th><th align="left">持股比例</th><th align="left">持股数量</th><th align="left">截止日期</th></tr></thead>
+        <tbody>
+        {% for h in holders[:5] %}
+          <tr><td>{{ h.get('holder_name','?') }}</td><td>{{ h.get('hold_ratio','—') }}</td><td>{{ h.get('hold_amount','—') }}</td><td>{{ h.get('end_date','—') }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="muted">（暂无股东数据）</p>
+      {% endif %}
+    </section>
 
     <div class="grid">
       <section class="section">
@@ -83,6 +102,46 @@
     <section class="section">
       <h2>估值与敏感性</h2>
       <p>{{ valuation_analysis or '（待完善）' }}</p>
+      {% set valuation_methods = valuation.valuation_methods if valuation else {} %}
+      {% set intrinsic_value = valuation.intrinsic_value if valuation else None %}
+      {% if valuation_methods %}
+      <ul>
+        <li>综合内在价值（方法均值）：{{ "%.2f"|format(intrinsic_value) if intrinsic_value is not none else "暂无" }}；现价：{{ "%.2f"|format(current_price) if current_price is not none else "未知" }}</li>
+        {% if valuation_methods.get('dcf') %}
+        <li>DCF 每股价值：{{ "%.2f"|format(valuation_methods['dcf'].get('fair_value')) if valuation_methods['dcf'].get('fair_value') is not none else "—" }}（WACC={{ "%.1f"|format(valuation_methods['dcf'].get('wacc',0)*100) if valuation_methods['dcf'].get('wacc') is not none else "—" }}%，g={{ "%.1f"|format(valuation_methods['dcf'].get('g',0)*100) if valuation_methods['dcf'].get('g') is not none else "—" }}%，gt={{ "%.1f"|format(valuation_methods['dcf'].get('gt',0)*100) if valuation_methods['dcf'].get('gt') is not none else "—" }}%，年限={{ valuation_methods['dcf'].get('years','—') }}）</li>
+        {% endif %}
+        {% if valuation_methods.get('pe_band') %}
+        <li>PE Band：{{ valuation_methods['pe_band'].get('pe_low','—') }}x~{{ valuation_methods['pe_band'].get('pe_high','—') }}x → 每股 {{ "%.2f"|format(valuation_methods['pe_band'].get('fair_value')) if valuation_methods['pe_band'].get('fair_value') is not none else "—" }}</li>
+        {% endif %}
+{% if valuation_methods.get('ev_ebitda') %}
+<li>EV/EBITDA：{{ valuation_methods['ev_ebitda'].get('ev_ebitda_low','—') }}x~{{ valuation_methods['ev_ebitda'].get('ev_ebitda_high','—') }}x → 每股 {{ "%.2f"|format(valuation_methods['ev_ebitda'].get('fair_value')) if valuation_methods['ev_ebitda'].get('fair_value') is not none else "—" }}</li>
+{% else %}
+<li>EV/EBITDA：未生成（可能因 EBITDA<=0 或净债务缺失）</li>
+{% endif %}
+{% if valuation_methods.get('pb_band') %}
+<li>PB Band：{{ valuation_methods['pb_band'].get('pb_low','—') }}x~{{ valuation_methods['pb_band'].get('pb_high','—') }}x → 每股 {{ "%.2f"|format(valuation_methods['pb_band'].get('fair_value')) if valuation_methods['pb_band'].get('fair_value') is not none else "—" }}</li>
+{% endif %}
+{% if valuation_methods.get('ev_sales') %}
+<li>EV/Sales：{{ valuation_methods['ev_sales'].get('ev_sales_low','—') }}x~{{ valuation_methods['ev_sales'].get('ev_sales_high','—') }}x → 每股 {{ "%.2f"|format(valuation_methods['ev_sales'].get('fair_value')) if valuation_methods['ev_sales'].get('fair_value') is not none else "—" }}</li>
+{% endif %}
+{% if valuation_overrides %}
+<li>CLI 假设覆盖：{% for k,v in valuation_overrides.items() %}{{ k }}={{ v }}{% if not loop.last %}, {% endif %}{% endfor %}</li>
+{% endif %}
+</ul>
+      {% endif %}
+      {% set anomaly_growth = anomalies.get('growth') if anomalies else None %}
+      {% set anomaly_profit = anomalies.get('profitability') if anomalies else None %}
+      {% if quant_warnings or anomaly_growth or anomaly_profit or qual_notes %}
+      <div style="margin-top:8px; padding:10px; border:1px solid #1f2937; border-radius:8px; background:rgba(244, 158, 11, 0.08); color:var(--warn);">
+        <strong>提示：</strong>
+        <ul>
+          {% for w in quant_warnings %}<li>{{ w }}</li>{% endfor %}
+          {% if anomaly_growth %}<li>增长异常：{{ anomaly_growth }}</li>{% endif %}
+          {% if anomaly_profit %}<li>盈利异常：{{ anomaly_profit }}</li>{% endif %}
+          {% if qual_notes %}<li>定性要点参考：{{ qual_notes }}</li>{% endif %}
+        </ul>
+      </div>
+      {% endif %}
     </section>
 
     <section class="section">
@@ -141,12 +200,23 @@
       {% endif %}
     </section>
 
-    {% if charts %}
+    {% if charts_inline %}
     <section class="section charts">
       <h2>Charts</h2>
       <ul>
-      {% for chart in charts %}
-        <li><img src="{{ chart.path }}" alt="{{ chart.caption or 'chart' }}" /><div style="color:var(--muted); margin-top:4px;">{{ chart.caption or '' }}</div></li>
+      {% for chart in charts_inline %}
+        <li><img src="{{ chart.data_url }}" alt="{{ chart.caption or 'chart' }}" /><div style="color:var(--muted); margin-top:4px;">{{ chart.caption or '' }}</div></li>
+      {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    {% if footnotes %}
+    <section class="section">
+      <h2>参考资料</h2>
+      <ul>
+      {% for item in footnotes %}
+        <li>[{{ item.index }}] <a href="{{ item.url }}" target="_blank" rel="noopener">{{ item.url }}</a></li>
       {% endfor %}
       </ul>
     </section>

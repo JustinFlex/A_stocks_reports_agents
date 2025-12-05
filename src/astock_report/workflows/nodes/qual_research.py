@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from astock_report.workflows.context import WorkflowContext
 from astock_report.workflows.state import ReportState
+from astock_report.workflows.nodes.llm_clean import clean_llm_output
 
 SYSTEM_PROMPT = "You are a concise equity research assistant writing in Chinese."
 
@@ -18,6 +19,11 @@ def run(state: ReportState, context: WorkflowContext) -> ReportState:
 
     news_digest = state.get("news_digest") or "(无新闻摘要)"
     basic = state.get("basic_info") or {}
+    overrides = state.get("llm_overrides") or {}
+    resolved_web_search = overrides.get("qual_web_search")
+    if resolved_web_search is None:
+        resolved_web_search = True if context.config.poe_web_search is None else context.config.poe_web_search
+    resolved_budget = overrides.get("qual_thinking_budget", context.config.poe_thinking_budget)
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -36,11 +42,12 @@ def run(state: ReportState, context: WorkflowContext) -> ReportState:
     ]
 
     try:
-        state["qual_notes"] = context.gemini.generate(
+        raw = context.gemini.generate(
             messages,
-            web_search=True,
-            thinking_budget=context.config.poe_thinking_budget,
+            web_search=resolved_web_search,
+            thinking_budget=resolved_budget,
         )
+        state["qual_notes"] = clean_llm_output(raw)
     except Exception as exc:  # pylint: disable=broad-except
         errors.append(f"Qual research failed: {exc}")
     return state

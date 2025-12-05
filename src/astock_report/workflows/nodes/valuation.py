@@ -32,7 +32,8 @@ def run(state: ReportState, context: WorkflowContext) -> ReportState:
     logs.append("ValuationAgent -> execute DCF and peer comparisons")
     try:
         ratio_summary = ratios if isinstance(ratios, RatioSummary) else ratios
-        state["valuation"] = context.valuation_engine.run(dataset, ratio_summary)
+        overrides = state.get("valuation_overrides") or {}
+        state["valuation"] = context.valuation_engine.run(dataset, ratio_summary, overrides=overrides)
     except Exception as exc:  # pylint: disable=broad-except
         errors.append(f"Valuation engine failed: {exc}")
     return state

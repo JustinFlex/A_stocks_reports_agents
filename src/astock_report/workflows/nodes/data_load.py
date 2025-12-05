@@ -36,9 +36,6 @@ def run(state: ReportState, context: WorkflowContext) -> ReportState:
             now_utc = datetime.now(timezone.utc)
             logs.append(f"Fetched and cached {persisted} statement rows from TuShare at {now_utc.isoformat()}")
             dataset = normalized["dataset"]
-            # Basic info & holders (best effort)
-            _load_and_cache_basic_info(state, context)
-            _load_and_cache_holders(state, context)
         except Exception as exc:  # pylint: disable=broad-except
             errors.append(f"TuShare fetch failed: {exc}")
     else:
@@ -56,6 +53,11 @@ def run(state: ReportState, context: WorkflowContext) -> ReportState:
         dataset.cash_flows.append(
             FinancialStatement(ticker=ticker, period=now, statement_type="CF", metrics={})
         )
+
+    # Attempt to fill basic info and holders even when statements are cached.
+    if context.tushare is not None:
+        _load_and_cache_basic_info(state, context)
+        _load_and_cache_holders(state, context)
 
     state["financials"] = dataset
     return state
@@ -84,8 +86,8 @@ BALANCE_MAP = {
     "total_equity": ["total_hldr_eqy_exc_min_int", "total_hldr_eqy_inc_min_int"],
     "total_liabilities": ["total_liab"],
     "cash_and_equivalents": ["money_cap", "cash_and_equivalents"],
-    "short_term_debt": ["short_term_borr", "shortterm_loan", "st_borrow"],
-    "long_term_debt": ["long_term_borr", "lt_borrow", "bond_payable", "non_cur_liab_due_1y"],
+    "short_term_debt": ["short_term_borr", "shortterm_loan", "st_borrow", "st_borr"],
+    "long_term_debt": ["long_term_borr", "lt_borrow", "lt_borr", "bond_payable", "non_cur_liab_due_1y"],
     "inventory": ["inventories", "inventory"],
     "accounts_receivable": ["accounts_receivable", "acct_rcv"],
     "accounts_payable": ["acct_payable", "accounts_payable", "notes_payable"],
@@ -97,8 +99,14 @@ BALANCE_MAP = {
 
 CASHFLOW_MAP = {
     "operating_cash_flow": ["n_cashflow_act", "net_cash_flows_oper_act"],
-    "capital_expenditures": ["c_paid_acq_const_fiolta", "c_paid_invest", "c_pur_fa_olta", "capital_expenditures"],
-    "free_cash_flow": ["free_cash_flow"],
+    "capital_expenditures": [
+        "c_paid_acq_const_fiolta",
+        "c_pay_acq_const_fiolta",
+        "c_paid_invest",
+        "c_pur_fa_olta",
+        "capital_expenditures",
+    ],
+    "free_cash_flow": ["free_cash_flow", "free_cashflow"],
 }
 
 

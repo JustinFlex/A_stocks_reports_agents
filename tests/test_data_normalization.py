@@ -158,3 +158,52 @@ def test_alias_fields_from_tushare_docs():
     assert bs_metrics["accounts_payable"] == 60
     assert cf_metrics["capital_expenditures"] == 25
     assert cf_metrics["free_cash_flow"] == 35
+
+
+def test_additional_liability_and_cashflow_aliases():
+    ticker = "600999.SH"
+    income_df = pd.DataFrame(
+        [
+            {
+                "end_date": "20231231",
+                "revenue": 200,
+                "n_income": 40,
+            }
+        ]
+    )
+    balance_df = pd.DataFrame(
+        [
+            {
+                "end_date": "20231231",
+                "total_assets": 900,
+                "total_hldr_eqy_exc_min_int": 350,
+                "total_liab": 550,
+                "st_borr": 60,
+                "lt_borr": 180,
+            }
+        ]
+    )
+    cashflow_df = pd.DataFrame(
+        [
+            {
+                "end_date": "20231231",
+                "n_cashflow_act": 120,
+                "c_pay_acq_const_fiolta": 45,
+                "free_cashflow": 70,
+            }
+        ]
+    )
+
+    normalized = _normalize_tushare_financials(
+        {"income": income_df, "balance": balance_df, "cashflow": cashflow_df}, ticker
+    )
+    ds = normalized["dataset"]
+    assert ds.is_complete()
+
+    bs_metrics = ds.balance_sheets[0].metrics
+    cf_metrics = ds.cash_flows[0].metrics
+
+    assert bs_metrics["short_term_debt"] == 60
+    assert bs_metrics["long_term_debt"] == 180
+    assert cf_metrics["capital_expenditures"] == 45
+    assert cf_metrics["free_cash_flow"] == 70

@@ -16,4 +16,4 @@ The system follows a layered, hexagon-inspired architecture that separates domai
 - Presentation interacts with workflow only, keeping commands thin.
 
 ## Current Workflow Topology
-并行数据/信息流，末端复核与图表：`ingest_financials → enrich_market` ║ `news_fetch_mapreduce → qual_research` → `quant_metrics` + `qual_research` → `valuation` → `narrative_writer` → `risk` → `reviewer` → `chart_builder` → `writing` → `qa`。写作层现生成 Markdown+HTML，HTML 模板包含打印友好主题并可作为 PDF 源。
+并行数据/信息流，末端复核与图表（HTML 为主要交付，图表内嵌）：`ingest_financials → enrich_market` ║ `news_fetch_mapreduce → qual_research` → `quant_metrics` + `qual_research` → `valuation` → `narrative_writer` → `risk` → `reviewer` → `chart_builder` → `writing` → `qa`。写作层生成 Markdown+HTML（含脚注/引用与内嵌图表），HTML 可作为 PDF 源。

@@ -22,7 +22,15 @@ from astock_report.infrastructure.db.sqlite import SQLiteRepository
 from astock_report.infrastructure.llm.gemini_client import GeminiClient
 from astock_report.workflows import context as context_module
 from astock_report.workflows.blueprint import StageSpec, build_default_stages
-from astock_report.workflows.nodes import narrative, qa, reviewer, valuation, writing
+from astock_report.workflows.nodes import (
+    narrative,
+    news,
+    qa,
+    qual_research,
+    reviewer,
+    valuation,
+    writing,
+)
 from astock_report.workflows.state import ReportState
 
 
@@ -92,7 +100,14 @@ class ReportWorkflow:
 
         return wrapper
 
-    def run(self, ticker: str, company_name: Optional[str] = None) -> ReportState:
+    def run(
+        self,
+        ticker: str,
+        company_name: Optional[str] = None,
+        *,
+        valuation_overrides: Optional[Dict[str, float]] = None,
+        llm_overrides: Optional[Dict[str, Any]] = None,
+    ) -> ReportState:
         """Execute the workflow for a single ticker."""
         initial_state: ReportState = {
             "ticker": ticker,
@@ -103,6 +118,10 @@ class ReportWorkflow:
             "extras": {},
             "stage_order": [stage.key for stage in self._stages],
         }
+        if valuation_overrides:
+            initial_state["valuation_overrides"] = valuation_overrides
+        if llm_overrides:
+            initial_state["llm_overrides"] = llm_overrides
         result: ReportState = self._graph.invoke(initial_state)
         result = self._apply_rerun_hooks(result)
         return result  # type: ignore[return-value]
@@ -118,6 +137,18 @@ class ReportWorkflow:
         wants_valuation_rerun = any(
             req.get("suggested_action") == "rerun_valuation_node" for req in rewrite_requests
         )
+        wants_news_rerun = any(
+            req.get("suggested_action") == "rerun_news_node" for req in rewrite_requests
+        )
+
+        if wants_news_rerun:
+            logs.append("PostRun -> rerunning news/qual/narrative/reviewer/writing/qa due to news rewrite request")
+            state = news.run(state, self._context)
+            state = qual_research.run(state, self._context)
+            state = narrative.run(state, self._context)
+            state = reviewer.run(state, self._context)
+            state = writing.run(state, self._context)
+            state = qa.run(state, self._context)
 
         if wants_valuation_rerun:
             logs.append("PostRun -> rerunning valuation/narrative/reviewer/writing/qa due to valuation rewrite request")

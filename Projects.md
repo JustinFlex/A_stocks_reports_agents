@@ -27,8 +27,8 @@
 
 ## 现在做到哪了？
 - 已建成：整体脚手架、CLI（含 batch/PDF）、LangGraph 工作流（行情/财务/新闻/定性/估值/复核/图表/QA）、TuShare/Gemini 适配层、基础计算与单测、CI（ruff/mypy/pytest）。
-- 当前状态：已上线财报去重+频次标记和 TTM 口径，估值/比率用年度/TTM 数据并加输入护栏；叙事 JSON 清洗+重试已启用，QA/复核结果写回报告尾；图表改为年度序列消除“锯齿”；负内在价值 vs 正股价降级为警告提示。
+- 当前状态：财报去重+频次标记与 TTM 口径完成；估值/比率用年度/TTM 数据并加护栏；叙事 JSON 清洗+重试生效；QA/复核结果写回报告；图表年度序列平滑；PB/EV/Sales 估值已加入并按亏损/正常自适应；风险/新闻引用脚注化，HTML 内嵌图表，核心观点附投资评级。
 - 下一步重点（详情见 `TODO.md` / `ProjectPlan.md`）：
-  1) 增补估值方法（PB/EV/Sales/NAV 等）与假设暴露；完善 QA 引用/估值一致性检查。
-  2) 集成测试与 smoke（TuShare/Poe）；开发者指南与 TushareAPI 索引脚本。
-  3) 图表字体与样式优化，CI 收紧（覆盖率/ruff/mypy gating）。***
+  1) 估值多模型加权/区间展示，NAV/同业分位与 DCF 假设外化。
+  2) 集成测试与 TuShare/Poe smoke，开发者指南与 TushareAPI 索引脚本。
+  3) 图表字体与样式优化，CI 收紧（覆盖率/ruff/mypy gating）。
