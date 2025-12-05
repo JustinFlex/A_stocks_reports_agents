@@ -1,0 +1,71 @@
+# {{ company_name or ticker }} 深度研究报告
+
+> 报告生成日期：{{ report_date }}
+> 股票代码：{{ ticker }}
+
+## 核心观点
+{{ core_viewpoints | default('（待完善）') }}
+
+## 公司简介
+{{ company_intro | default('（待完善）') }}
+
+## 行业与竞争格局
+{{ industry_analysis | default('（待完善）') }}
+
+## 增长分析
+{{ growth_analysis | default('（待完善）') }}
+
+## 财务表现
+{{ financial_analysis | default('（待完善）') }}
+
+## 估值与敏感性
+{{ valuation_analysis | default('（待完善）') }}
+
+## 风险与催化剂
+{{ risk_catalyst | default('（待完善）') }}
+
+## 数据异常与提示
+{% if anomalies %}
+- 增长异常：{{ anomalies.get('growth') or '无' }}
+- 盈利异常：{{ anomalies.get('profitability') or '无' }}
+{% else %}
+（未发现明显异常）
+{% endif %}
+
+## 复核摘要
+{% if review_report %}
+{{ review_report }}
+{% else %}
+（复核报告未生成或模型未配置）
+{% endif %}
+
+## QA 检查
+{% if qa_report %}
+- 通过：{{ '是' if qa_report.passed else '否' }}
+- 缺失叙事：{{ qa_report.missing_narratives or '无' }}
+- 检查项：
+{% for item in qa_report.checks %}
+  - {{ item.label }}：{{ '通过' if item.status == 'ok' else '缺失' }}
+{% endfor %}
+- 重写建议：
+{% if qa_report.rewrite_requests %}
+{% for req in qa_report.rewrite_requests %}
+  - 阶段 {{ req.stage }}：{{ req.reason }}（动作：{{ req.suggested_action }}）
+{% endfor %}
+{% else %}
+  - 无
+{% endif %}
+{% else %}
+（未执行 QA 或 QA 结果缺失）
+{% endif %}
+
+{% if charts %}
+## Charts
+{% for chart in charts %}
+- ![{{ chart.caption or 'chart' }}]({{ chart.path }}) — {{ chart.caption or '' }}
+{% endfor %}
+{% endif %}
+
+---
+
+*本报告由 LangGraph 工作流自动生成，定量结果来源于项目内置数据流水线。*

@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=67", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "a-stock-report"
+version = "0.1.0"
+description = "CLI workflow for generating deep-dive A-share equity research reports"
+readme = "README.md"
+authors = [{ name = "Project Team" }]
+requires-python = ">=3.10"
+dependencies = [
+    "httpx",
+    "jinja2",
+    "langgraph",
+    "numpy",
+    "openai",
+    "pandas",
+    "python-dotenv",
+    "rich",
+    "sqlalchemy",
+    "typer[all]",
+    "tushare",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff", "mypy", "pytest-cov"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>{{ company_name or ticker }} 研究报告</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #111827;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --warn: #f59e0b;
+      --error: #f43f5e;
+    }
+    body { margin: 0; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; background: var(--bg); color: var(--text); }
+    header { padding: 24px 32px; border-bottom: 1px solid #1f2937; }
+    h1 { margin: 0; font-size: 28px; }
+    .meta { color: var(--muted); margin-top: 6px; }
+    main { padding: 24px 32px 48px; display: grid; gap: 16px; max-width: 1080px; }
+    .section { background: var(--card); border: 1px solid #1f2937; border-radius: 12px; padding: 18px 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
+    .section h2 { margin: 0 0 10px; font-size: 20px; color: var(--accent); }
+    p { line-height: 1.6; margin: 6px 0; }
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+    .tag.ok { background: rgba(56, 189, 248, 0.12); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.35); }
+    .tag.missing { background: rgba(244, 63, 94, 0.12); color: var(--error); border: 1px solid rgba(244, 63, 94, 0.35); }
+    ul { margin: 6px 0 0 18px; padding: 0; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+    .qa-list li { margin: 4px 0; }
+    .charts img { max-width: 100%; border-radius: 10px; border: 1px solid #1f2937; }
+
+    /* Print-friendly palette */
+    @media print {
+      :root {
+        --bg: #ffffff;
+        --card: #ffffff;
+        --text: #0f172a;
+        --muted: #334155;
+        --accent: #0f3d63;
+        --warn: #b45309;
+        --error: #b91c1c;
+      }
+      body { background: #ffffff; color: var(--text); }
+      header { border-bottom: 1px solid #e2e8f0; }
+      .section { background: #ffffff; border: 1px solid #e2e8f0; box-shadow: none; }
+      .charts img { border: 1px solid #e2e8f0; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>{{ company_name or ticker }} 深度研究报告</h1>
+    <div class="meta">生成日期：{{ report_date }} ｜ 代码：{{ ticker }}</div>
+  </header>
+  <main>
+    <section class="section">
+      <h2>核心观点</h2>
+      <p>{{ core_viewpoints or '（待完善）' }}</p>
+    </section>
+
+    <div class="grid">
+      <section class="section">
+        <h2>公司简介</h2>
+        <p>{{ company_intro or '（待完善）' }}</p>
+      </section>
+      <section class="section">
+        <h2>行业与竞争格局</h2>
+        <p>{{ industry_analysis or '（待完善）' }}</p>
+      </section>
+    </div>
+
+    <div class="grid">
+      <section class="section">
+        <h2>增长分析</h2>
+        <p>{{ growth_analysis or '（待完善）' }}</p>
+      </section>
+      <section class="section">
+        <h2>财务表现</h2>
+        <p>{{ financial_analysis or '（待完善）' }}</p>
+      </section>
+    </div>
+
+    <section class="section">
+      <h2>估值与敏感性</h2>
+      <p>{{ valuation_analysis or '（待完善）' }}</p>
+    </section>
+
+    <section class="section">
+      <h2>风险与催化剂</h2>
+      <p>{{ risk_catalyst or '（待完善）' }}</p>
+    </section>
+
+    <section class="section">
+      <h2>数据异常与提示</h2>
+      {% if anomalies %}
+        <ul>
+          <li>增长异常：{{ anomalies.get('growth') or '无' }}</li>
+          <li>盈利异常：{{ anomalies.get('profitability') or '无' }}</li>
+        </ul>
+      {% else %}
+        <p>（未发现明显异常）</p>
+      {% endif %}
+    </section>
+
+    <section class="section">
+      <h2>复核摘要</h2>
+      {% if review_report %}
+        <div>{{ review_report }}</div>
+      {% else %}
+        <p>（复核报告未生成或模型未配置）</p>
+      {% endif %}
+    </section>
+
+    <section class="section">
+      <h2>QA 检查</h2>
+      {% if qa_report %}
+        <p>通过：<span class="tag {{ 'ok' if qa_report.passed else 'missing' }}">{{ '是' if qa_report.passed else '否' }}</span></p>
+        <p>缺失叙事：{{ qa_report.missing_narratives or '无' }}</p>
+        <div class="qa-list">
+          <strong>检查项：</strong>
+          <ul>
+          {% for item in qa_report.checks %}
+            <li>{{ item.label }}：<span class="tag {{ 'ok' if item.status == 'ok' else 'missing' }}">{{ '通过' if item.status == 'ok' else '缺失' }}</span></li>
+          {% endfor %}
+          </ul>
+        </div>
+        <div class="qa-list">
+          <strong>重写建议：</strong>
+          {% if qa_report.rewrite_requests %}
+            <ul>
+            {% for req in qa_report.rewrite_requests %}
+              <li>阶段 {{ req.stage }}：{{ req.reason }}（动作：{{ req.suggested_action }}）</li>
+            {% endfor %}
+            </ul>
+          {% else %}
+            <p>无</p>
+          {% endif %}
+        </div>
+      {% else %}
+        <p>（未执行 QA 或 QA 结果缺失）</p>
+      {% endif %}
+    </section>
+
+    {% if charts %}
+    <section class="section charts">
+      <h2>Charts</h2>
+      <ul>
+      {% for chart in charts %}
+        <li><img src="{{ chart.path }}" alt="{{ chart.caption or 'chart' }}" /><div style="color:var(--muted); margin-top:4px;">{{ chart.caption or '' }}</div></li>
+      {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  </main>
+</body>
+</html>

@@ -1,0 +1,11 @@
+httpx
+jinja2
+langgraph
+numpy
+openai
+pandas
+python-dotenv
+rich
+sqlalchemy
+typer[all]
+tushare

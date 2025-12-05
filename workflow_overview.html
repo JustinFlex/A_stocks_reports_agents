@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>A-Share Report Workflow Overview</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #475569;
+      --accent: #0ea5e9;
+      --border: #e2e8f0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 32px;
+    }
+    h1, h2, h3 {
+      margin: 0 0 12px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+    h1 { font-size: 28px; }
+    h2 { font-size: 22px; margin-top: 28px; }
+    h3 { font-size: 18px; margin-top: 18px; color: var(--muted); }
+    p { margin: 6px 0 12px; color: var(--muted); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+    }
+    .pill {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: rgba(14, 165, 233, 0.12);
+      color: var(--accent);
+      border: 1px solid rgba(14, 165, 233, 0.35);
+      margin-left: 8px;
+    }
+    ul { margin: 8px 0 0 18px; padding: 0; }
+    li { margin-bottom: 6px; }
+    code {
+      background: #e2e8f0;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .footer {
+      margin-top: 28px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <h1>A-Share Research Report Workflow</h1>
+  <p>Current end-to-end pipeline for generating a full A-share research report (Markdown + HTML, optional PDF).</p>
+
+  <h2>Visual Flow</h2>
+  <div class="card" style="overflow:auto;">
+    <svg width="1200" height="340" viewBox="0 0 1200 340" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <style>
+          .box { fill:#fff; stroke:#0ea5e9; stroke-width:2; rx:8; ry:8; }
+          .text { font-family:'Segoe UI', Arial, sans-serif; font-size:13px; fill:#0f172a; }
+          .small { font-size:12px; fill:#475569; }
+          .arrow { stroke:#475569; stroke-width:1.5; marker-end:url(#arrowhead); fill:none; }
+        </style>
+        <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <polygon points="0 0, 6 3, 0 6" fill="#475569" />
+        </marker>
+      </defs>
+
+      <!-- Rows: data stream (top), info stream (mid), post-merge (bottom) -->
+      <!-- Data branch -->
+      <rect class="box" x="40" y="30" width="180" height="50"/>
+      <text class="text" x="60" y="60">ingest_financials</text>
+
+      <rect class="box" x="260" y="30" width="160" height="50"/>
+      <text class="text" x="280" y="60">enrich_market</text>
+
+      <rect class="box" x="460" y="30" width="170" height="50"/>
+      <text class="text" x="480" y="60">quant_metrics</text>
+
+      <!-- Info branch -->
+      <rect class="box" x="40" y="140" width="200" height="50"/>
+      <text class="text" x="60" y="170">news_fetch_mapreduce</text>
+
+      <rect class="box" x="280" y="140" width="170" height="50"/>
+      <text class="text" x="300" y="170">qual_research</text>
+
+      <!-- Merge -->
+      <rect class="box" x="680" y="85" width="140" height="50"/>
+      <text class="text" x="700" y="115">valuation</text>
+
+      <rect class="box" x="860" y="85" width="160" height="50"/>
+      <text class="text" x="880" y="115">narrative_writer</text>
+
+      <rect class="box" x="1060" y="85" width="110" height="50"/>
+      <text class="text" x="1080" y="115">reviewer</text>
+
+      <!-- Post reviewer -->
+      <rect class="box" x="680" y="240" width="140" height="50"/>
+      <text class="text" x="700" y="270">chart_builder</text>
+
+      <rect class="box" x="860" y="240" width="160" height="50"/>
+      <text class="text" x="885" y="270">writing (MD+HTML)</text>
+
+      <rect class="box" x="1060" y="240" width="110" height="50"/>
+      <text class="text" x="1085" y="270">QA</text>
+
+      <!-- Arrows data branch -->
+      <line class="arrow" x1="220" y1="55" x2="260" y2="55"/>
+      <line class="arrow" x1="420" y1="55" x2="460" y2="55"/>
+      <line class="arrow" x1="630" y1="55" x2="680" y2="110"/>
+
+      <!-- Arrows info branch -->
+      <line class="arrow" x1="240" y1="165" x2="280" y2="165"/>
+      <line class="arrow" x1="450" y1="165" x2="680" y2="110"/>
+
+      <!-- Merge to narrative/reviewer -->
+      <line class="arrow" x1="820" y1="110" x2="860" y2="110"/>
+      <line class="arrow" x1="1020" y1="110" x2="1060" y2="110"/>
+
+      <!-- Down to chart/writing/QA -->
+      <line class="arrow" x1="740" y1="135" x2="740" y2="240"/>
+      <line class="arrow" x1="920" y1="135" x2="920" y2="240"/>
+      <line class="arrow" x1="1020" y1="135" x2="1115" y2="240"/>
+      <line class="arrow" x1="820" y1="265" x2="860" y2="265"/>
+      <line class="arrow" x1="1020" y1="265" x2="1060" y2="265"/>
+
+      <!-- QA rerun hook back to valuation/narrative -->
+      <path class="arrow" d="M1115 240 C1120 210, 800 180, 800 135" />
+      <text class="small" x="950" y="195">QA rewrite/rerun (valuation/narrative)</text>
+    </svg>
+  </div>
+
+  <h2>CLI Entry</h2>
+  <div class="card">
+    <p><code>python -m astock_report.app.main generate &lt;ticker&gt; --name "&lt;company&gt;" --pdf-source html --json</code></p>
+    <ul>
+      <li>Env: <code>TUSHARE_API_KEY</code>, <code>POE_API_KEY</code>, <code>TUSHARE_BASE_URL</code>, <code>TUSHARE_PROXY</code> (per <code>TushareAPI/TUSHARE_CONFIG.md</code>).</li>
+      <li>Outputs: <code>reports/&lt;ticker&gt;.md</code>, <code>reports/&lt;ticker&gt;.html</code>, optional <code>.pdf</code> (pandoc), <code>.json</code> state.</li>
+    </ul>
+  </div>
+
+  <h2>Workflow Stages</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>1) ingest_financials</h3>
+      <ul>
+        <li>Load IS/BS/CF from SQLite; fallback to TuShare, honoring token/base_url/proxy.</li>
+        <li>Tag frequency (annual/quarterly), keep latest by <code>update_flag</code>, dedup per period.</li>
+        <li>Cache holders/basic_info best-effort.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>2) enrich_market</h3>
+      <ul>
+        <li>Fetch last 120 trading days via TuShare daily; cache to SQLite.</li>
+        <li>Set <code>current_price</code> + price stats; persist price anchor.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>3) quant_metrics</h3>
+      <ul>
+        <li>TTM-aware growth (annual YoY fallback to same-quarter YoY); CAGR on annual series.</li>
+        <li>Ratios from TTM IS/CF + latest BS; anomaly detector marks &gt;30% swings & negative profitability.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>4) news_fetch_mapreduce</h3>
+      <ul>
+        <li>Poe (Gemini) with <code>web_search=True</code>; Map 5–8 items (date/source/sentiment/link).</li>
+        <li>Reduce to 3–5 catalysts.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>5) qual_research</h3>
+      <ul>
+        <li>Industry/peer/catalyst summary via Poe with search.</li>
+        <li>Sources noted; “未知/暂无” when missing.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>6) valuation</h3>
+      <ul>
+        <li>TTM FCF/EPS/EBITDA; DCF + guarded PE/EV/EBITDA (skip if EPS≤0 or EBITDA≤0).</li>
+        <li>Defaults: WACC 10%, g 8%, gt 3%; sensitivity ±2pp WACC, ±1pp g.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>7) narrative_writer</h3>
+      <ul>
+        <li>Poe (no search) returns JSON sections (company/industry/growth/financial/valuation/viewpoints).</li>
+        <li>JSON cleaned (code fences/braces), retried up to 3x; missing sections filled with placeholders.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>8) reviewer</h3>
+      <ul>
+        <li>Poe consistency/coverage review; one retry on failure.</li>
+        <li>Outputs <code>review_report</code> embedded in final report.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>9) chart_builder</h3>
+      <ul>
+        <li>Price chart (120d window); Revenue/Net Income chart uses deduped annual series to avoid jagged lines.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>10) writing</h3>
+      <ul>
+        <li>Render Markdown + HTML (print-friendly theme); inject charts, anomalies, qual/news, review/QA tails.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>11) qa</h3>
+      <ul>
+        <li>Checklist for data/sections/links; warns on negative intrinsic vs positive price; rerun hooks for missing narratives or invalid valuation inputs.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Post-run reruns</h3>
+      <ul>
+        <li>If QA requests rerun (valuation/narrative), re-executes valuation → narrative → reviewer → writing → QA.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Outputs & Locations</h2>
+  <div class="card">
+    <ul>
+      <li>Markdown: <code>reports/&lt;ticker&gt;.md</code></li>
+      <li>HTML: <code>reports/&lt;ticker&gt;.html</code> (PDF via pandoc if installed)</li>
+      <li>State (debug): <code>reports/&lt;ticker&gt;_state.json</code></li>
+      <li>Charts: <code>reports/charts/&lt;ticker&gt;_*.png</code></li>
+    </ul>
+  </div>
+
+  <div class="footer">
+    Notes: Structured market/financial data must use TuShare per TUSHARE_CONFIG; news/qualitative content and reasoning go through Poe (Gemini). Ensure tokens are read from env or <code>.tushare_token</code> only. Negative intrinsic vs positive price is treated as a warning for A-share distress cases.
+  </div>
+</body>
+</html>
