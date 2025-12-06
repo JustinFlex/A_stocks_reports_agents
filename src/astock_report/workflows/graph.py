@@ -20,6 +20,7 @@ from astock_report.domain.services.calculations import (
 from astock_report.infrastructure.data_providers.tushare_client import TuShareClient
 from astock_report.infrastructure.db.sqlite import SQLiteRepository
 from astock_report.infrastructure.llm.gemini_client import GeminiClient
+from astock_report.infrastructure.sector import SectorService
 from astock_report.workflows import context as context_module
 from astock_report.workflows.blueprint import StageSpec, build_default_stages
 from astock_report.workflows.nodes import (
@@ -70,6 +71,7 @@ class ReportWorkflow:
             config=self._config,
             repository=repository,
             tushare=tushare_client,
+            sector_service=SectorService(repository=repository, tushare=tushare_client),
             growth_calculator=GrowthCalculator(),
             ratio_calculator=RatioCalculator(),
             valuation_engine=ValuationEngine(),

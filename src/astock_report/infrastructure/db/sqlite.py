@@ -86,6 +86,27 @@ class SQLiteRepository:
             );
             """,
             """CREATE INDEX IF NOT EXISTS idx_holders_ticker ON holders(ticker);""",
+            # Sector classification and cached constituents/peers
+            """
+            CREATE TABLE IF NOT EXISTS sw_classifications (
+              index_code TEXT PRIMARY KEY,
+              index_name TEXT,
+              level TEXT,
+              industry_code TEXT,
+              updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS sw_members (
+              index_code TEXT NOT NULL,
+              ts_code TEXT NOT NULL,
+              name TEXT,
+              weight REAL,
+              con_date DATE,
+              PRIMARY KEY (index_code, ts_code)
+            );
+            """,
+            """CREATE INDEX IF NOT EXISTS idx_sw_members_code ON sw_members(index_code);""",
         ]
         with self._engine.begin() as conn:
             for statement in ddl:
@@ -238,6 +259,122 @@ class SQLiteRepository:
                     "market_cap": market_cap,
                 },
             )
+
+    # -------------
+    # Sector caches
+    # -------------
+    def upsert_sw_classifications(self, rows: Iterable[Dict[str, Any]]) -> int:
+        payload = []
+        for r in rows:
+            code = r.get("index_code")
+            if not code:
+                continue
+            payload.append(
+                {
+                    "index_code": code,
+                    "index_name": r.get("index_name"),
+                    "level": r.get("level"),
+                    "industry_code": r.get("industry_code"),
+                }
+            )
+        if not payload:
+            return 0
+        stmt = text(
+            """
+            INSERT INTO sw_classifications (index_code, index_name, level, industry_code, updated_at)
+            VALUES (:index_code, :index_name, :level, :industry_code, CURRENT_TIMESTAMP)
+            ON CONFLICT(index_code) DO UPDATE SET
+              index_name=excluded.index_name,
+              level=excluded.level,
+              industry_code=excluded.industry_code,
+              updated_at=CURRENT_TIMESTAMP
+            """
+        )
+        with self._engine.begin() as conn:
+            conn.execute(stmt, payload)
+        return len(payload)
+
+    def upsert_sw_members(self, index_code: str, rows: Iterable[Dict[str, Any]]) -> int:
+        payload = []
+        for r in rows:
+            ts_code = r.get("con_code") or r.get("ts_code")
+            if not ts_code:
+                continue
+            payload.append(
+                {
+                    "index_code": index_code,
+                    "ts_code": ts_code,
+                    "name": r.get("name"),
+                    "weight": r.get("weight"),
+                    "con_date": r.get("con_date"),
+                }
+            )
+        if not payload:
+            return 0
+        stmt = text(
+            """
+            INSERT INTO sw_members (index_code, ts_code, name, weight, con_date)
+            VALUES (:index_code, :ts_code, :name, :weight, :con_date)
+            ON CONFLICT(index_code, ts_code) DO UPDATE SET
+              name=excluded.name,
+              weight=excluded.weight,
+              con_date=excluded.con_date
+            """
+        )
+        with self._engine.begin() as conn:
+            conn.execute(stmt, payload)
+        return len(payload)
+
+    def fetch_sw_classification(
+        self,
+        industry_code: Optional[str] = None,
+        index_code: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        clauses = []
+        params: Dict[str, Any] = {}
+        if industry_code:
+            clauses.append("industry_code = :industry_code")
+            params["industry_code"] = industry_code
+        if index_code:
+            clauses.append("index_code = :index_code")
+            params["index_code"] = index_code
+        where = ""
+        if clauses:
+            where = "WHERE " + " AND ".join(clauses)
+        query = text(
+            f"""
+            SELECT index_code, index_name, level, industry_code
+            FROM sw_classifications
+            {where}
+            """
+        )
+        with self._engine.connect() as conn:
+            rows = conn.execute(query, params)
+            return [dict(r) for r in rows.mappings()]
+
+    def fetch_sw_members(self, index_code: str) -> List[Dict[str, Any]]:
+        query = text(
+            """
+            SELECT ts_code, name, weight, con_date
+            FROM sw_members
+            WHERE index_code = :index_code
+            """
+        )
+        with self._engine.connect() as conn:
+            rows = conn.execute(query, {"index_code": index_code})
+            return [dict(r) for r in rows.mappings()]
+
+    def fetch_sw_memberships_for_ticker(self, ts_code: str) -> List[Dict[str, Any]]:
+        query = text(
+            """
+            SELECT index_code, ts_code, name, weight, con_date
+            FROM sw_members
+            WHERE ts_code = :ts_code
+            """
+        )
+        with self._engine.connect() as conn:
+            rows = conn.execute(query, {"ts_code": ts_code})
+            return [dict(r) for r in rows.mappings()]
 
     def fetch_price_anchor(self, ticker: str) -> Optional[Dict[str, Any]]:
         query = text(

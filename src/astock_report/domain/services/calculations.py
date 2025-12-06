@@ -302,12 +302,14 @@ class ValuationEngine:
         dataset: FinancialDataset,
         ratios: RatioSummary,
         overrides: Optional[Dict[str, float]] = None,
+        hints: Optional[Dict[str, float]] = None,
     ) -> ValuationBundle:
         # Extract latest facts needed for valuation
         inc_stmts = _dedup_statements(dataset.income_statements)
         bs_stmts = _dedup_statements(dataset.balance_sheets)
         cf_stmts = _dedup_statements(dataset.cash_flows)
         overrides = overrides or {}
+        hints = hints or {}
 
         inc_df = _frame_from_statements(inc_stmts, keys=["net_income", "ebitda", "revenue"]).sort_values("period")
         bs_df = _frame_from_statements(
@@ -342,6 +344,7 @@ class ValuationEngine:
                 net_margin_ratio = float(ratios.ratios.get("net_margin", float("nan")))
             except Exception:
                 net_margin_ratio = float("nan")
+        warnings: List[str] = []
 
         def g(d: Dict[str, float], key: str) -> float:
             return float(d.get(key)) if (d is not None and key in d and d[key] is not None) else float("nan")
@@ -360,6 +363,8 @@ class ValuationEngine:
         market_cap = g(latest_bs, "market_cap")
         if np.isnan(market_cap) and not np.isnan(price) and not np.isnan(shares):
             market_cap = price * shares
+        if np.isnan(shares) or shares <= 0:
+            warnings.append("shares_outstanding 缺失或无效，部分估值方法可能不可靠。")
 
         ebitda = inc_ttm.get("ebitda", float("nan")) if inc_ttm else g(latest_inc, "ebitda")
         revenue = inc_ttm.get("revenue", float("nan")) if inc_ttm else g(latest_inc, "revenue")
@@ -389,18 +394,27 @@ class ValuationEngine:
                 fcf = ocf - capex
 
         # Assumptions with dataset overrides if provided
+        derived_defaults = self._derive_assumptions(inc_df, bs_df, ratios)
+
         def pick_assumption(key: str, dataset_value: float, default_value: float) -> float:
             override_value = from_override(key)
             if not np.isnan(override_value):
                 return override_value
+            hint_value = _to_float(hints.get(key)) if hints else float("nan")
+            if not np.isnan(hint_value):
+                return hint_value
             if not np.isnan(dataset_value):
                 return dataset_value
             return default_value
 
-        wacc = pick_assumption("wacc", g(latest_bs, "wacc"), 0.10)
-        growth = pick_assumption("g", g(latest_bs, "g"), 0.08)
-        terminal_growth = pick_assumption("terminal_growth", g(latest_bs, "terminal_growth"), 0.03)
-        years = pick_assumption("forecast_years", g(latest_bs, "forecast_years"), 5.0)
+        wacc = pick_assumption("wacc", g(latest_bs, "wacc"), derived_defaults.get("wacc", 0.10))
+        growth = pick_assumption("g", g(latest_bs, "g"), derived_defaults.get("g", 0.08))
+        terminal_growth = pick_assumption(
+            "terminal_growth", g(latest_bs, "terminal_growth"), derived_defaults.get("terminal_growth", 0.03)
+        )
+        years = pick_assumption(
+            "forecast_years", g(latest_bs, "forecast_years"), derived_defaults.get("forecast_years", 5.0)
+        )
         n_years = max(int(round(years)), 1)
 
         valuation_methods: Dict[str, Dict[str, float]] = {}
@@ -456,10 +470,12 @@ class ValuationEngine:
             valuation_methods["dcf"] = method
 
         # PE band valuation (requires positive EPS/price)
-        pe_low = pick_assumption("pe_low", float("nan"), 10.0)
-        pe_high = pick_assumption("pe_high", float("nan"), 20.0)
+        pe_low = pick_assumption("pe_low", float("nan"), derived_defaults.get("pe_low", 10.0))
+        pe_high = pick_assumption("pe_high", float("nan"), derived_defaults.get("pe_high", 20.0))
         if pe_low <= 0 or pe_high <= 0 or pe_low >= pe_high:
             pe_low, pe_high = 10.0, 20.0
+        if np.isnan(eps) or eps <= 0:
+            warnings.append("EPS/净利润为负或缺失，PE 估值仅作参考。")
         if not (np.isnan(eps) or np.isnan(shares) or np.isnan(price)) and eps > 0 and price > 0:
             pe_mid = (pe_low + pe_high) / 2.0
             fair_value_pe = eps * pe_mid
@@ -473,8 +489,10 @@ class ValuationEngine:
             valuation_methods["pe_band"] = method
 
         # EV/EBITDA valuation
-        ev_ebitda_low = pick_assumption("ev_ebitda_low", float("nan"), 6.0)
-        ev_ebitda_high = pick_assumption("ev_ebitda_high", float("nan"), 12.0)
+        ev_ebitda_low = pick_assumption("ev_ebitda_low", float("nan"), derived_defaults.get("ev_ebitda_low", 6.0))
+        ev_ebitda_high = pick_assumption(
+            "ev_ebitda_high", float("nan"), derived_defaults.get("ev_ebitda_high", 12.0)
+        )
         if ev_ebitda_low <= 0 or ev_ebitda_high <= 0 or ev_ebitda_low >= ev_ebitda_high:
             ev_ebitda_low, ev_ebitda_high = 6.0, 12.0
         if not (np.isnan(ebitda) or ebitda <= 0.0 or np.isnan(net_debt) or np.isnan(shares)):
@@ -493,11 +511,14 @@ class ValuationEngine:
             valuation_methods["ev_ebitda"] = method
 
         # PB band valuation (book value multiples)
-        pb_defaults = (0.4, 0.9) if not np.isnan(net_margin_ratio) and net_margin_ratio < 0 else (0.8, 1.5)
+        pb_defaults = (
+            derived_defaults.get("pb_low", 0.8),
+            derived_defaults.get("pb_high", 1.5),
+        )
         pb_low = pick_assumption("pb_low", float("nan"), pb_defaults[0])
         pb_high = pick_assumption("pb_high", float("nan"), pb_defaults[1])
         if pb_low <= 0 or pb_high <= 0 or pb_low >= pb_high:
-            pb_low, pb_high = pb_defaults
+            pb_low, pb_high = (pb_defaults[0], pb_defaults[1])
         book_per_share = float("nan")
         total_equity = g(latest_bs, "total_equity")
         if not (np.isnan(total_equity) or np.isnan(shares) or shares == 0.0):
@@ -516,7 +537,10 @@ class ValuationEngine:
             valuation_methods["pb_band"] = method
 
         # EV/Sales valuation
-        sales_defaults = (0.2, 0.8) if not np.isnan(net_margin_ratio) and net_margin_ratio < 0 else (1.0, 2.0)
+        sales_defaults = (
+            derived_defaults.get("ev_sales_low", 1.0),
+            derived_defaults.get("ev_sales_high", 2.0),
+        )
         ev_sales_low = pick_assumption("ev_sales_low", float("nan"), sales_defaults[0])
         ev_sales_high = pick_assumption("ev_sales_high", float("nan"), sales_defaults[1])
         if ev_sales_low <= 0 or ev_sales_high <= 0 or ev_sales_low >= ev_sales_high:
@@ -536,10 +560,134 @@ class ValuationEngine:
                 method["upside"] = (fair_value_sales / price) - 1.0
             valuation_methods["ev_sales"] = method
 
+        # Scenario set (base/bull/bear) using DCF backbone with ±1pp WACC / ±1pp g
+        scenarios: List[Dict[str, float]] = []
         # Choose an intrinsic value (simple average of available methods)
         fair_values = [m.get("fair_value") for m in valuation_methods.values() if not np.isnan(m.get("fair_value", float("nan")))]
         intrinsic = float(np.nanmean(fair_values)) if fair_values else None
-        return ValuationBundle(intrinsic_value=intrinsic, valuation_methods=valuation_methods)
+        base_val = intrinsic if intrinsic is not None else (dcf_fair_value if not np.isnan(dcf_fair_value) else float("nan"))
+        if not np.isnan(base_val):
+            def _scenario(label: str, w: float, g_val: float) -> Dict[str, float]:
+                fv = base_val
+                if not np.isnan(dcf_fair_value):
+                    _, per_share = _dcf_fcff(
+                        fcf=fcf if not np.isnan(fcf) else 0.0,
+                        growth=g_val,
+                        wacc=w,
+                        terminal_growth=terminal_growth,
+                        years=n_years,
+                        net_debt=net_debt if not np.isnan(net_debt) else 0.0,
+                        shares=shares if shares > 0 else 1.0,
+                    )
+                    fv = per_share
+                return {"case": label, "fair_value": float(fv), "wacc": float(w), "g": float(g_val)}
+
+            bull_wacc = max(wacc - 0.01, 0.05)
+            bull_g = min(growth + 0.01, bull_wacc - 0.005) if bull_wacc > 0.01 else growth
+            bear_wacc = min(wacc + 0.01, 0.20)
+            bear_g = max(growth - 0.01, -0.05)
+            scenarios = [
+                _scenario("base", wacc, growth),
+                _scenario("bull", bull_wacc, bull_g),
+                _scenario("bear", bear_wacc, bear_g),
+            ]
+            valuation_methods["scenarios"] = {"cases": scenarios}
+
+        merged_assumptions = dict(derived_defaults)
+        for k, v in (hints or {}).items():
+            if not np.isnan(_to_float(v)):
+                merged_assumptions[k] = _to_float(v)
+        return ValuationBundle(intrinsic_value=intrinsic, valuation_methods=valuation_methods, assumptions=merged_assumptions, warnings=warnings)
+
+    def _derive_assumptions(self, inc_df: pd.DataFrame, bs_df: pd.DataFrame, ratios: RatioSummary) -> Dict[str, float]:
+        """Derive ticker-specific valuation priors from financials and ratios."""
+        # Profitability & leverage signals
+        revenue_cagr = _cagr_from_df(_filter_annual(inc_df), "revenue")
+        rev_vol = float("nan")
+        try:
+            rev_vol = float(inc_df.sort_values("period")["revenue"].pct_change().std())
+        except Exception:
+            rev_vol = float("nan")
+        net_margin = float("nan")
+        debt_to_equity = float("nan")
+        if ratios and ratios.ratios:
+            net_margin = _to_float(ratios.ratios.get("net_margin"))
+            debt_to_equity = _to_float(ratios.ratios.get("debt_to_equity"))
+        if np.isnan(debt_to_equity):
+            try:
+                latest_bs, _ = _latest_and_prev(bs_df)
+                total_liab = _to_float(latest_bs.get("total_liabilities")) if latest_bs else float("nan")
+                total_equity = _to_float(latest_bs.get("total_equity")) if latest_bs else float("nan")
+                if not np.isnan(total_liab) and not np.isnan(total_equity) and total_equity != 0:
+                    debt_to_equity = total_liab / total_equity
+            except Exception:
+                debt_to_equity = float("nan")
+
+        # WACC heuristic: start at 9%, adjust by leverage/profitability
+        wacc = 0.09
+        if not np.isnan(debt_to_equity):
+            if debt_to_equity > 1.5:
+                wacc += 0.015
+            elif debt_to_equity > 0.8:
+                wacc += 0.008
+            elif debt_to_equity < 0.4:
+                wacc -= 0.005
+        if not np.isnan(net_margin):
+            if net_margin < 0:
+                wacc += 0.01
+            elif net_margin > 0.15:
+                wacc -= 0.005
+        wacc = float(min(max(wacc, 0.07), 0.15))
+
+        # Growth heuristic: use revenue CAGR, adjust by volatility to avoid over-exuberance
+        growth_base = 0.05 if np.isnan(revenue_cagr) else revenue_cagr
+        vol_haircut = 0.0 if np.isnan(rev_vol) else min(max(rev_vol, 0.0), 0.1)
+        growth = growth_base - vol_haircut * 0.3
+        growth = float(min(max(growth, -0.03), 0.12))
+        terminal_growth = float(min(max(growth * 0.5, 0.01), 0.03))
+        forecast_years = 5.0
+
+        # Multiple bands based on profitability class
+        pe_low, pe_high = 10.0, 20.0
+        ev_ebitda_low, ev_ebitda_high = 6.0, 12.0
+        pb_low, pb_high = 0.8, 1.4
+        ev_sales_low, ev_sales_high = 1.0, 2.0
+        if not np.isnan(net_margin):
+            if net_margin <= 0:
+                pe_low, pe_high = 8.0, 14.0
+                ev_ebitda_low, ev_ebitda_high = 5.0, 9.0
+                pb_low, pb_high = 0.4, 0.9
+                ev_sales_low, ev_sales_high = 0.2, 0.8
+            elif net_margin < 0.05:
+                pe_low, pe_high = 9.0, 17.0
+                ev_ebitda_low, ev_ebitda_high = 6.0, 10.0
+                pb_low, pb_high = 0.7, 1.2
+                ev_sales_low, ev_sales_high = 0.8, 1.6
+            elif net_margin < 0.15:
+                pe_low, pe_high = 11.0, 19.0
+                ev_ebitda_low, ev_ebitda_high = 7.0, 11.0
+                pb_low, pb_high = 0.8, 1.4
+                ev_sales_low, ev_sales_high = 1.0, 2.0
+            else:
+                pe_low, pe_high = 12.0, 22.0
+                ev_ebitda_low, ev_ebitda_high = 7.0, 12.0
+                pb_low, pb_high = 1.2, 2.2
+                ev_sales_low, ev_sales_high = 1.5, 3.0
+
+        return {
+            "wacc": wacc,
+            "g": growth,
+            "terminal_growth": terminal_growth,
+            "forecast_years": forecast_years,
+            "pe_low": pe_low,
+            "pe_high": pe_high,
+            "ev_ebitda_low": ev_ebitda_low,
+            "ev_ebitda_high": ev_ebitda_high,
+            "pb_low": pb_low,
+            "pb_high": pb_high,
+            "ev_sales_low": ev_sales_low,
+            "ev_sales_high": ev_sales_high,
+        }
 
 
 # ----------------------------

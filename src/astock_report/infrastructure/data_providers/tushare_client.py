@@ -61,6 +61,92 @@ class TuShareClient:
             fields="ts_code,name,area,industry,list_date,market,exchange",
         )
 
+    def fetch_index_daily(
+        self,
+        index_code: str,
+        *,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        limit: int = 120,
+    ):
+        """Fetch index daily prices (e.g., CSI300 or sector indices) for beta estimation."""
+        query_kwargs: Dict[str, Any] = {"ts_code": index_code, "limit": limit}
+        if start_date is not None:
+            query_kwargs["start_date"] = start_date.strftime("%Y%m%d")
+        if end_date is not None:
+            query_kwargs["end_date"] = end_date.strftime("%Y%m%d")
+        return self._call_with_retry(self._pro.index_daily, **query_kwargs)
+
+    def fetch_index_dailybasic(
+        self,
+        index_code: str,
+        *,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        limit: int = 120,
+    ):
+        """Fetch index valuation snapshots (pe_ttm/pb/ps_ttm) for sector anchors."""
+        query_kwargs: Dict[str, Any] = {"ts_code": index_code, "limit": limit}
+        if start_date is not None:
+            query_kwargs["start_date"] = start_date.strftime("%Y%m%d")
+        if end_date is not None:
+            query_kwargs["end_date"] = end_date.strftime("%Y%m%d")
+        return self._call_with_retry(self._pro.index_dailybasic, **query_kwargs)
+
+    def fetch_sw_daily(
+        self,
+        index_code: str,
+        *,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        limit: int = 120,
+    ):
+        """Fetch Shenwan industry index daily data (includes pe/pb)."""
+        query_kwargs: Dict[str, Any] = {"ts_code": index_code, "limit": limit}
+        if start_date is not None:
+            query_kwargs["start_date"] = start_date.strftime("%Y%m%d")
+        if end_date is not None:
+            query_kwargs["end_date"] = end_date.strftime("%Y%m%d")
+        return self._call_with_retry(self._pro.sw_daily, **query_kwargs)
+
+    def fetch_index_classify(self, src: str = "SW") -> Any:
+        """Fetch index classification list (e.g., Shenwan industries)."""
+        return self._call_with_retry(self._pro.index_classify, src=src)
+
+    def fetch_index_members(self, index_code: str) -> Any:
+        """Fetch constituent members for the given index."""
+        return self._call_with_retry(self._pro.index_member, index_code=index_code)
+
+    def fetch_index_member_all(self, **kwargs: Any) -> Any:
+        """Fetch Shenwan constituents with flexible params (l1/l2/l3/ts_code)."""
+        return self._call_with_retry(self._pro.index_member_all, **kwargs)
+
+    def fetch_daily_basic(
+        self,
+        *,
+        ts_code: Optional[str] = None,
+        trade_date: Optional[str] = None,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        limit: Optional[int] = None,
+        fields: Optional[str] = None,
+    ):
+        """Wrapper for TuShare daily_basic with common date formatting."""
+        query_kwargs: Dict[str, Any] = {}
+        if ts_code:
+            query_kwargs["ts_code"] = ts_code
+        if trade_date:
+            query_kwargs["trade_date"] = trade_date
+        if start_date is not None:
+            query_kwargs["start_date"] = start_date.strftime("%Y%m%d")
+        if end_date is not None:
+            query_kwargs["end_date"] = end_date.strftime("%Y%m%d")
+        if limit is not None:
+            query_kwargs["limit"] = limit
+        if fields:
+            query_kwargs["fields"] = fields
+        return self._call_with_retry(self._pro.daily_basic, **query_kwargs)
+
     def fetch_fina_indicators(self, ticker: str, *, start_date: Optional[date] = None, end_date: Optional[date] = None):
         """Fetch financial indicator snapshots from TuShare (VIP if available)."""
         query_kwargs: Dict[str, Any] = {"ts_code": ticker}

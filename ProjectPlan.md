@@ -4,6 +4,14 @@
 
 ---
 
+## 近期进展速记（2025-12）
+- 行业/估值：已接入 TuShare 申万分类 `index_classify/index_member_all`，缓存成分，自动选行业指数；基于成分 `daily_basic` 计算同业 PE/PB/PS 分位并注入估值假设，beta→CAPM WACC 作为折现率提示，报告模板透明展示。
+- 可读性：新闻/定性前缀、空括号、Map/Reduce 噪音清洗；脚注集中文末；Markdown 增加 title/date/lang 元数据，pandoc PDF 告警下降；异常提示汇总为短句区间。
+- 呈现：估值情景与行业分位在 HTML/Markdown 均表格化，Shenwan 行业基准（指数/样本/Beta/WACC）显式展示，新闻/定性输出 bullet 化；新增 Margin Bridge 图表。
+- 产物与验证：002803.SZ（吉宏股份）全流程（HTML/MD/PDF/state）成功，sector-aware 估值已生效；pytest 全部通过。
+
+---
+
 ## 目录
 1. 项目概述  
 2. 目标与范围  

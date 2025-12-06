@@ -59,6 +59,8 @@ class ValuationBundle:
 
     intrinsic_value: Optional[float]
     valuation_methods: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    assumptions: Dict[str, float] = field(default_factory=dict)
+    warnings: List[str] = field(default_factory=list)
 
 
 @dataclass

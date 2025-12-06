@@ -1,15 +1,30 @@
+---
+title: "{{ company_name or ticker }} 深度研究报告"
+date: "{{ report_date }}"
+lang: zh-CN
+---
+
 # {{ company_name or ticker }} 深度研究报告
 
 > 报告生成日期：{{ report_date }}
 > 股票代码：{{ ticker }}
 > 生成时间：{{ report_timestamp }}
 
+{% macro fmtnum(val, digits=2) -%}
+{%- if val is not none and val == val -%}
+{{ ("%." ~ digits ~ "f")|format(val) }}
+{%- else -%}
+— 
+{%- endif -%}
+{%- endmacro %}
+
 ## 核心观点
 {{ core_viewpoints | default('（待完善）') }}
 > 投资评级：{{ rating_text or '（待完善）' }}
 
-## 公司简介
-{{ company_intro | default('（待完善）') }}{% if company_intro_refs %} {{ company_intro_refs }}{% endif %}
+## 02 公司概览
+{% set refs = section_refs.get('company_intro', []) %}
+{{ company_intro | default('（待完善）') }}{% if refs %}{% for idx in refs %} [^{{ idx }}]{% endfor %}{% endif %}
 
 ## 基础信息与股东结构
 - 行业：{{ basic_info.get('industry', '未知') }} ｜ 地区：{{ basic_info.get('area', '未知') }} ｜ 上市日期：{{ basic_info.get('list_date', '未知') }}
@@ -22,45 +37,76 @@
 {% endfor %}
 {% else %}（暂无股东数据）{% endif %}
 
-## 行业与竞争格局
-{{ industry_analysis | default('（待完善）') }}{% if industry_analysis_refs %} {{ industry_analysis_refs }}{% endif %}
+## 03 行业与竞争格局
+{% set refs = section_refs.get('industry_analysis', []) %}
+{{ industry_analysis | default('（待完善）') }}{% if refs %}{% for idx in refs %} [^{{ idx }}]{% endfor %}{% endif %}
 
-## 增长分析
-{{ growth_analysis | default('（待完善）') }}
+## 04 新闻与定性摘要
+{% set refs = section_refs.get('news_digest', []) %}
+{{ news_digest | default('（未抓取新闻或新闻缺失）') }}{% if refs %}{% for idx in refs %} [^{{ idx }}]{% endfor %}{% endif %}
 
-## 财务表现
-{{ financial_analysis | default('（待完善）') }}
+{% set refs = section_refs.get('qual_notes', []) %}
+**定性要点：** {{ qual_notes | default('（暂无定性摘要）') }}{% if refs %}{% for idx in refs %} [^{{ idx }}]{% endfor %}{% endif %}
 
-## 估值与敏感性
-{{ valuation_analysis | default('（待完善）') }}
+## 05 成长分析
+{% set refs = section_refs.get('growth_analysis', []) %}
+{{ growth_analysis | default('（待完善）') }}{% if refs %}{% for idx in refs %} [^{{ idx }}]{% endfor %}{% endif %}
+
+## 06 财务表现
+{% set refs = section_refs.get('financial_analysis', []) %}
+{{ financial_analysis | default('（待完善）') }}{% if refs %}{% for idx in refs %} [^{{ idx }}]{% endfor %}{% endif %}
+
+## 07 估值与敏感性
+{% set refs = section_refs.get('valuation_analysis', []) %}
+{{ valuation_analysis | default('（待完善）') }}{% if refs %}{% for idx in refs %} [^{{ idx }}]{% endfor %}{% endif %}
 
 {% set valuation_methods = valuation.valuation_methods if valuation else {} %}
 {% set intrinsic_value = valuation.intrinsic_value if valuation else None %}
 
 {% if valuation_methods %}
+**估值概览**
+
 - 综合内在价值（方法均值）：{{ "%.2f"|format(intrinsic_value) if intrinsic_value is not none else "暂无" }}；现价：{{ "%.2f"|format(current_price) if current_price is not none else "未知" }}
-{% if valuation_methods.get('dcf') %}
-- DCF 每股价值：{{ "%.2f"|format(valuation_methods['dcf'].get('fair_value')) if valuation_methods['dcf'].get('fair_value') is not none else "—" }}（WACC={{ "%.1f"|format(valuation_methods['dcf'].get('wacc',0)*100) if valuation_methods['dcf'].get('wacc') is not none else "—" }}%，g={{ "%.1f"|format(valuation_methods['dcf'].get('g',0)*100) if valuation_methods['dcf'].get('g') is not none else "—" }}%，gt={{ "%.1f"|format(valuation_methods['dcf'].get('gt',0)*100) if valuation_methods['dcf'].get('gt') is not none else "—" }}%，年限={{ valuation_methods['dcf'].get('years','—') }}）
+{% if valuation_methods.get('dcf') %}- DCF 每股价值：{{ "%.2f"|format(valuation_methods['dcf'].get('fair_value')) if valuation_methods['dcf'].get('fair_value') is not none else "—" }}（WACC={{ "%.1f"|format(valuation_methods['dcf'].get('wacc',0)*100) if valuation_methods['dcf'].get('wacc') is not none else "—" }}%，g={{ "%.1f"|format(valuation_methods['dcf'].get('g',0)*100) if valuation_methods['dcf'].get('g') is not none else "—" }}%，gt={{ "%.1f"|format(valuation_methods['dcf'].get('gt',0)*100) if valuation_methods['dcf'].get('gt') is not none else "—" }}%，年限={{ valuation_methods['dcf'].get('years','—') }}）
 {% endif %}
-{% if valuation_methods.get('pe_band') %}
-- PE Band：{{ valuation_methods['pe_band'].get('pe_low','—') }}x~{{ valuation_methods['pe_band'].get('pe_high','—') }}x → 每股 {{ "%.2f"|format(valuation_methods['pe_band'].get('fair_value')) if valuation_methods['pe_band'].get('fair_value') is not none else "—" }}
+{% if valuation_methods.get('pe_band') %}- PE Band：{{ valuation_methods['pe_band'].get('pe_low','—') }}x~{{ valuation_methods['pe_band'].get('pe_high','—') }}x → 每股 {{ "%.2f"|format(valuation_methods['pe_band'].get('fair_value')) if valuation_methods['pe_band'].get('fair_value') is not none else "—" }}
 {% endif %}
-{% if valuation_methods.get('ev_ebitda') %}
-- EV/EBITDA：{{ valuation_methods['ev_ebitda'].get('ev_ebitda_low','—') }}x~{{ valuation_methods['ev_ebitda'].get('ev_ebitda_high','—') }}x → 每股 {{ "%.2f"|format(valuation_methods['ev_ebitda'].get('fair_value')) if valuation_methods['ev_ebitda'].get('fair_value') is not none else "—" }}
-{% else %}
-- EV/EBITDA：未生成（可能因 EBITDA<=0 或净债务缺失）
+{% if valuation_methods.get('ev_ebitda') %}- EV/EBITDA：{{ valuation_methods['ev_ebitda'].get('ev_ebitda_low','—') }}x~{{ valuation_methods['ev_ebitda'].get('ev_ebitda_high','—') }}x → 每股 {{ "%.2f"|format(valuation_methods['ev_ebitda'].get('fair_value')) if valuation_methods['ev_ebitda'].get('fair_value') is not none else "—" }}
+{% else %}- EV/EBITDA：未生成（可能因 EBITDA<=0 或净债务缺失）
 {% endif %}
-{% if valuation_methods.get('pb_band') %}
-- PB Band：{{ valuation_methods['pb_band'].get('pb_low','—') }}x~{{ valuation_methods['pb_band'].get('pb_high','—') }}x → 每股 {{ "%.2f"|format(valuation_methods['pb_band'].get('fair_value')) if valuation_methods['pb_band'].get('fair_value') is not none else "—" }}
+{% if valuation_methods.get('pb_band') %}- PB Band：{{ valuation_methods['pb_band'].get('pb_low','—') }}x~{{ valuation_methods['pb_band'].get('pb_high','—') }}x → 每股 {{ "%.2f"|format(valuation_methods['pb_band'].get('fair_value')) if valuation_methods['pb_band'].get('fair_value') is not none else "—" }}
 {% endif %}
-{% if valuation_methods.get('ev_sales') %}
-- EV/Sales：{{ valuation_methods['ev_sales'].get('ev_sales_low','—') }}x~{{ valuation_methods['ev_sales'].get('ev_sales_high','—') }}x → 每股 {{ "%.2f"|format(valuation_methods['ev_sales'].get('fair_value')) if valuation_methods['ev_sales'].get('fair_value') is not none else "—" }}
+{% if valuation_methods.get('ev_sales') %}- EV/Sales：{{ valuation_methods['ev_sales'].get('ev_sales_low','—') }}x~{{ valuation_methods['ev_sales'].get('ev_sales_high','—') }}x → 每股 {{ "%.2f"|format(valuation_methods['ev_sales'].get('fair_value')) if valuation_methods['ev_sales'].get('fair_value') is not none else "—" }}
 {% endif %}
-{% if valuation_overrides %}
-- CLI 假设覆盖：{% for k,v in valuation_overrides.items() %}{{ k }}={{ v }}{% if not loop.last %}, {% endif %}{% endfor %}
+{% if valuation_overrides %}- CLI 假设覆盖：{% for k,v in valuation_overrides.items() %}{{ k }}={{ v }}{% if not loop.last %}, {% endif %}{% endfor %}
+{% endif %}
+
+{% if valuation_methods.get('scenarios') %}
+**情景估值**
+
+| 情景 | 每股价值 | WACC | g |
+| --- | --- | --- | --- |
+{% for c in valuation_methods['scenarios'].get('cases', []) %}| {{ c.case|capitalize }} | {{ fmtnum(c.fair_value) }} | {{ fmtnum(c.wacc*100,1) }}% | {{ fmtnum(c.g*100,1) }}% |
+{% endfor %}
 {% endif %}
 {% else %}
 （估值结果待补充）
+{% endif %}
+
+{% set hints = valuation_hints or {} %}
+{% set peer = hints.get('peer_percentiles') or {} %}
+{% if hints.get('index_code') or peer %}
+**行业基准与同业分位**
+
+- 基准指数：{{ hints.get('index_name') or hints.get('index_code') or '—' }}{% if hints.get('sector_level') %}（{{ hints.get('sector_level') }}）{% endif %}{% if hints.get('sector_member_count') %}｜成份股 {{ hints.get('sector_member_count') }}{% endif %}{% if hints.get('beta') is not none %}｜Beta：{{ fmtnum(hints.get('beta')) }}{% endif %}{% if hints.get('wacc') is not none %}｜WACC 提示：{{ fmtnum(hints.get('wacc')*100, 1) }}%
+{% endif %}
+{% if peer %}
+| 指标 | P25 | P50 | P75 | 样本/交易日 |
+| --- | --- | --- | --- | --- |
+| PE | {{ fmtnum(peer.get('pe', {}).get('p25')) }} | {{ fmtnum(peer.get('pe', {}).get('p50')) }} | {{ fmtnum(peer.get('pe', {}).get('p75')) }} | {{ peer.get('sample_size','—') }} / {{ peer.get('trade_date','最新') }} |
+| PB | {{ fmtnum(peer.get('pb', {}).get('p25')) }} | {{ fmtnum(peer.get('pb', {}).get('p50')) }} | {{ fmtnum(peer.get('pb', {}).get('p75')) }} | {{ peer.get('sample_size','—') }} / {{ peer.get('trade_date','最新') }} |
+| PS | {{ fmtnum(peer.get('ps', {}).get('p25')) }} | {{ fmtnum(peer.get('ps', {}).get('p50')) }} | {{ fmtnum(peer.get('ps', {}).get('p75')) }} | {{ peer.get('sample_size','—') }} / {{ peer.get('trade_date','最新') }} |
+{% endif %}
 {% endif %}
 
 {% set anomaly_growth = anomalies.get('growth') if anomalies else None %}
@@ -70,11 +116,11 @@
 {% if quant_warnings %}- 量化/估值：{{ quant_warnings }}{% endif %}
 {% if anomaly_growth %}- 增长异常：{{ anomaly_growth }}{% endif %}
 {% if anomaly_profit %}- 盈利异常：{{ anomaly_profit }}{% endif %}
-{% if qual_notes %}- 定性要点参考：{{ qual_notes }}{% endif %}
 {% endif %}
 
-## 风险与催化剂
-{{ risk_catalyst | default('（待完善）') }}
+## 08 风险与催化剂
+{% set refs = section_refs.get('risk_catalyst', []) %}
+{{ risk_catalyst | default('（待完善）') }}{% if refs %}{% for idx in refs %} [^{{ idx }}]{% endfor %}{% endif %}
 
 ## 数据异常与提示
 {% if anomalies %}
@@ -84,9 +130,10 @@
 （未发现明显异常）
 {% endif %}
 
-## 复核摘要
+## 09 复核摘要
 {% if review_report %}
-{{ review_report }}
+{% set refs = section_refs.get('review_report', []) %}
+{{ review_report }}{% if refs %}{% for idx in refs %} [^{{ idx }}]{% endfor %}{% endif %}
 {% else %}
 （复核报告未生成或模型未配置）
 {% endif %}
@@ -122,7 +169,7 @@
 {% if footnotes %}
 ## 参考资料
 {% for item in footnotes %}
-[^{item.index}]: {{ item.url }}
+[^{{ item.index }}]: {{ item.url }}
 {% endfor %}
 {% endif %}
 

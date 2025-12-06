@@ -5,6 +5,14 @@ This scaffold delivers a modular CLI workflow that automates generation of deep-
 
 Boundary rules: structured行情/财报数据仅经 TuShare；新闻、舆情与推理全部走 Poe（Gemini），可按场景切换 `web_search` 并设定 `thinking_budget`（环境变量或调用时覆盖）。
 
+## Recent Progress
+- Shenwan 行业映射：通过 TuShare `index_classify/index_member_all` 自动选取行业指数、缓存成分并用于 beta/WACC。
+- 同业估值分位：从成分股 `daily_basic` 计算 PE/PB/PS 分位，落入估值假设与模板透明展示。
+- 报告易读性：新闻/定性 bullet 化、去除前缀/空括号/垃圾“Learn more”，脚注集中于文末；异常提示汇总成简短区间描述；内联图表缺失时不会阻断渲染。
+- 估值展示：HTML/Markdown 均以表格呈现情景估值与行业分位，Shenwan 行业基准（指数/样本/Beta/WACC）透明披露。
+- 图表扩展：价格、营收/净利、利润率、Margin Bridge、现金流、杠杆/流动性全套 PNG。
+- PDF 友好：Markdown 带 title 元数据，pandoc/wkhtmltopdf 可直接生成 PDF。
+
 ## High-level Workflow
 ```mermaid
 flowchart LR

@@ -38,7 +38,7 @@ NARRATIVE_KEYS = [
     "core_viewpoints",
 ]
 
-MIN_NARRATIVE_CHARS = 80
+MIN_NARRATIVE_CHARS = 140
 URL_RE = re.compile(r"https?://", re.IGNORECASE)
 SOURCE_RE = re.compile(r"(来源|source)\s*[:：]", re.IGNORECASE)
 

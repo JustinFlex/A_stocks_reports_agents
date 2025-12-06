@@ -5,29 +5,35 @@
   <title>{{ company_name or ticker }} 研究报告</title>
   <style>
     :root {
-      --bg: #0f172a;
-      --card: #111827;
-      --text: #e2e8f0;
-      --muted: #94a3b8;
-      --accent: #38bdf8;
-      --warn: #f59e0b;
-      --error: #f43f5e;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #475569;
+      --accent: #0f62fe;
+      --warn: #b45309;
+      --error: #b91c1c;
+      --border: #e2e8f0;
     }
     body { margin: 0; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; background: var(--bg); color: var(--text); }
-    header { padding: 24px 32px; border-bottom: 1px solid #1f2937; }
-    h1 { margin: 0; font-size: 28px; }
+    header { padding: 28px 32px 16px; border-bottom: 1px solid var(--border); }
+    h1 { margin: 0; font-size: 30px; }
     .meta { color: var(--muted); margin-top: 6px; }
-    main { padding: 24px 32px 48px; display: grid; gap: 16px; max-width: 1080px; }
-    .section { background: var(--card); border: 1px solid #1f2937; border-radius: 12px; padding: 18px 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
+    main { padding: 12px 32px 48px; display: flex; flex-direction: column; gap: 14px; max-width: 980px; margin: 0 auto; }
+    .section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; box-shadow: 0 6px 16px rgba(0,0,0,0.06); }
     .section h2 { margin: 0 0 10px; font-size: 20px; color: var(--accent); }
-    p { line-height: 1.6; margin: 6px 0; }
+    p { line-height: 1.65; margin: 6px 0; }
     .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
-    .tag.ok { background: rgba(56, 189, 248, 0.12); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.35); }
-    .tag.missing { background: rgba(244, 63, 94, 0.12); color: var(--error); border: 1px solid rgba(244, 63, 94, 0.35); }
+    .tag.ok { background: rgba(15, 98, 254, 0.08); color: var(--accent); border: 1px solid rgba(15, 98, 254, 0.25); }
+    .tag.missing { background: rgba(185, 28, 28, 0.08); color: var(--error); border: 1px solid rgba(185, 28, 28, 0.25); }
     ul { margin: 6px 0 0 18px; padding: 0; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
     .qa-list li { margin: 4px 0; }
-    .charts img { max-width: 100%; border-radius: 10px; border: 1px solid #1f2937; }
+    .charts img { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); }
+    .footnote-refs sup { margin-left: 2px; color: var(--muted); font-size: 12px; }
+    .footnote-refs a { color: var(--muted); text-decoration: none; }
+    .footnotes a { color: var(--accent); }
+    .two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 12px; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; background: rgba(15,98,254,0.06); color: var(--accent); border-radius: 10px; font-size: 13px; border: 1px solid rgba(15,98,254,0.2); }
+    .section h3 { margin: 8px 0 6px; font-size: 16px; color: var(--text); }
 
     /* Print-friendly palette */
     @media print {
@@ -48,60 +54,86 @@
   </style>
 </head>
 <body>
+  {% macro fmtnum(val, digits=2) -%}
+    {%- if val is not none and val == val -%}
+      {{ ("%." ~ digits ~ "f")|format(val) }}
+    {%- else -%}
+      —
+    {%- endif -%}
+  {%- endmacro %}
   <header>
     <h1>{{ company_name or ticker }} 深度研究报告</h1>
     <div class="meta">生成日期：{{ report_date }} ｜ 代码：{{ ticker }} ｜ 生成时间：{{ report_timestamp }}</div>
   </header>
   <main>
     <section class="section">
-      <h2>核心观点</h2>
+      <h2>01 核心观点</h2>
       <p>{{ core_viewpoints or '（待完善）' }}</p>
-      <p><strong>投资评级：</strong>{{ rating_text or '（待完善）' }}</p>
+      <p class="pill"><strong>投资评级：</strong>{{ rating_text or '（待完善）' }}</p>
     </section>
 
-    <div class="grid">
-      <section class="section">
-        <h2>公司简介</h2>
-        <p>{{ company_intro or '（待完善）' }}</p>
-      </section>
-      <section class="section">
-        <h2>行业与竞争格局</h2>
-        <p>{{ industry_analysis or '（待完善）' }}</p>
-      </section>
-    </div>
-
     <section class="section">
-      <h2>基础信息与股东结构</h2>
-      <p>行业：{{ basic_info.get('industry', '未知') }} ｜ 地区：{{ basic_info.get('area', '未知') }} ｜ 上市日期：{{ basic_info.get('list_date', '未知') }}</p>
-      <p>市场/交易所：{{ basic_info.get('market', '未知') }} / {{ basic_info.get('exchange', '未知') }}</p>
-      {% if holders %}
-      <table style="width:100%; border-collapse:collapse; margin-top:8px; color: var(--text);">
-        <thead><tr><th align="left">股东</th><th align="left">持股比例</th><th align="left">持股数量</th><th align="left">截止日期</th></tr></thead>
-        <tbody>
-        {% for h in holders[:5] %}
-          <tr><td>{{ h.get('holder_name','?') }}</td><td>{{ h.get('hold_ratio','—') }}</td><td>{{ h.get('hold_amount','—') }}</td><td>{{ h.get('end_date','—') }}</td></tr>
-        {% endfor %}
-        </tbody>
-      </table>
-      {% else %}
-      <p class="muted">（暂无股东数据）</p>
-      {% endif %}
+      <h2>02 公司概览</h2>
+      {% set refs = section_refs.get('company_intro', []) %}
+      <p>{{ company_intro or '（待完善）' }}{% if refs %}<span class="footnote-refs">{% for idx in refs %}<sup><a href="#footnote-{{ idx }}">[{{ idx }}]</a></sup>{% endfor %}</span>{% endif %}</p>
+      <div class="two-col" style="margin-top:10px;">
+        <div>
+          <h3>基础信息</h3>
+          <p>行业：{{ basic_info.get('industry', '未知') }} ｜ 地区：{{ basic_info.get('area', '未知') }} ｜ 上市日期：{{ basic_info.get('list_date', '未知') }}</p>
+          <p>市场/交易所：{{ basic_info.get('market', '未知') }} / {{ basic_info.get('exchange', '未知') }}</p>
+        </div>
+        <div>
+          <h3>股东结构（Top 5）</h3>
+          {% if holders %}
+          <table style="width:100%; border-collapse:collapse; margin-top:8px; color: var(--text); font-size: 14px;">
+            <thead><tr><th align="left">股东</th><th align="left">持股比例</th><th align="left">持股数量</th><th align="left">截止日期</th></tr></thead>
+            <tbody>
+            {% for h in holders[:5] %}
+              <tr><td>{{ h.get('holder_name','?') }}</td><td>{{ h.get('hold_ratio','—') }}</td><td>{{ h.get('hold_amount','—') }}</td><td>{{ h.get('end_date','—') }}</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p class="muted">（暂无股东数据）</p>
+          {% endif %}
+        </div>
+      </div>
     </section>
 
-    <div class="grid">
-      <section class="section">
-        <h2>增长分析</h2>
-        <p>{{ growth_analysis or '（待完善）' }}</p>
-      </section>
-      <section class="section">
-        <h2>财务表现</h2>
-        <p>{{ financial_analysis or '（待完善）' }}</p>
-      </section>
-    </div>
+    <section class="section">
+      <h2>03 行业与竞争格局</h2>
+      {% set refs = section_refs.get('industry_analysis', []) %}
+      <p>{{ industry_analysis or '（待完善）' }}{% if refs %}<span class="footnote-refs">{% for idx in refs %}<sup><a href="#footnote-{{ idx }}">[{{ idx }}]</a></sup>{% endfor %}</span>{% endif %}</p>
+    </section>
 
     <section class="section">
-      <h2>估值与敏感性</h2>
-      <p>{{ valuation_analysis or '（待完善）' }}</p>
+      <h2>04 新闻与定性摘要</h2>
+      {% set refs = section_refs.get('news_digest', []) %}
+      <p><strong>新闻摘要：</strong> {{ news_digest or '（未抓取新闻或新闻缺失）' }}{% if refs %}<span class="footnote-refs">{% for idx in refs %}<sup><a href="#footnote-{{ idx }}">[{{ idx }}]</a></sup>{% endfor %}</span>{% endif %}</p>
+      {% set refs2 = section_refs.get('qual_notes', []) %}
+      <p><strong>定性要点：</strong> {{ qual_notes or '（暂无定性摘要）' }}{% if refs2 %}<span class="footnote-refs">{% for idx in refs2 %}<sup><a href="#footnote-{{ idx }}">[{{ idx }}]</a></sup>{% endfor %}</span>{% endif %}</p>
+    </section>
+
+    <section class="section">
+      <h2>05 成长与财务表现</h2>
+      <div class="two-col">
+        <div>
+          <h3>增长分析</h3>
+          {% set refs = section_refs.get('growth_analysis', []) %}
+          <p>{{ growth_analysis or '（待完善）' }}{% if refs %}<span class="footnote-refs">{% for idx in refs %}<sup><a href="#footnote-{{ idx }}">[{{ idx }}]</a></sup>{% endfor %}</span>{% endif %}</p>
+        </div>
+        <div>
+          <h3>财务表现</h3>
+          {% set refs = section_refs.get('financial_analysis', []) %}
+          <p>{{ financial_analysis or '（待完善）' }}{% if refs %}<span class="footnote-refs">{% for idx in refs %}<sup><a href="#footnote-{{ idx }}">[{{ idx }}]</a></sup>{% endfor %}</span>{% endif %}</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>06 估值与敏感性</h2>
+      {% set refs = section_refs.get('valuation_analysis', []) %}
+      <p>{{ valuation_analysis or '（待完善）' }}{% if refs %}<span class="footnote-refs">{% for idx in refs %}<sup><a href="#footnote-{{ idx }}">[{{ idx }}]</a></sup>{% endfor %}</span>{% endif %}</p>
       {% set valuation_methods = valuation.valuation_methods if valuation else {} %}
       {% set intrinsic_value = valuation.intrinsic_value if valuation else None %}
       {% if valuation_methods %}
@@ -127,7 +159,40 @@
 {% if valuation_overrides %}
 <li>CLI 假设覆盖：{% for k,v in valuation_overrides.items() %}{{ k }}={{ v }}{% if not loop.last %}, {% endif %}{% endfor %}</li>
 {% endif %}
+{% if valuation_methods.get('scenarios') %}
+<li>情景估值：</li>
 </ul>
+<table style="width:100%; border-collapse:collapse; margin:6px 0; font-size:14px; color:var(--text);">
+  <thead><tr><th align="left">情景</th><th align="left">每股价值</th><th align="left">WACC</th><th align="left">g</th></tr></thead>
+  <tbody>
+  {% for c in valuation_methods['scenarios'].get('cases', []) %}
+    <tr><td>{{ c.case|capitalize }}</td><td>{{ fmtnum(c.fair_value) }}</td><td>{{ fmtnum(c.wacc*100,1) }}%</td><td>{{ fmtnum(c.g*100,1) }}%</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<ul>
+{% endif %}
+</ul>
+      {% endif %}
+      {% set hints = valuation_hints or {} %}
+      {% set peer = hints.get('peer_percentiles') or {} %}
+      {% if hints.get('index_code') or peer %}
+      <div style="margin-top:8px; padding:10px; border:1px solid var(--border); border-radius:8px; background:rgba(15,98,254,0.04); color:var(--text);">
+        <strong>行业基准：</strong>{{ hints.get('index_name') or hints.get('index_code') or '—' }}{% if hints.get('sector_level') %}（{{ hints.get('sector_level') }}）{% endif %}{% if hints.get('sector_member_count') %} ｜ 成份股 {{ hints.get('sector_member_count') }}{% endif %}{% if hints.get('beta') is not none %} ｜ Beta：{{ fmtnum(hints.get('beta')) }}{% endif %}{% if hints.get('wacc') is not none %} ｜ WACC 提示：{{ fmtnum(hints.get('wacc')*100, 1) }}%{% endif %}
+        {% if peer %}
+        <div style="margin-top:6px; color:var(--muted);">
+          同业估值分位（样本 {{ peer.get('sample_size','—') }}，{{ peer.get('trade_date','最新') }}）：
+          <table style="width:100%; border-collapse:collapse; margin:4px 0; font-size:13px; color:var(--muted);">
+            <thead><tr><th align="left">指标</th><th align="left">P25</th><th align="left">P50</th><th align="left">P75</th></tr></thead>
+            <tbody>
+              <tr><td>PE</td><td>{{ fmtnum(peer.get('pe', {}).get('p25')) }}</td><td>{{ fmtnum(peer.get('pe', {}).get('p50')) }}</td><td>{{ fmtnum(peer.get('pe', {}).get('p75')) }}</td></tr>
+              <tr><td>PB</td><td>{{ fmtnum(peer.get('pb', {}).get('p25')) }}</td><td>{{ fmtnum(peer.get('pb', {}).get('p50')) }}</td><td>{{ fmtnum(peer.get('pb', {}).get('p75')) }}</td></tr>
+              <tr><td>PS</td><td>{{ fmtnum(peer.get('ps', {}).get('p25')) }}</td><td>{{ fmtnum(peer.get('ps', {}).get('p50')) }}</td><td>{{ fmtnum(peer.get('ps', {}).get('p75')) }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+      </div>
       {% endif %}
       {% set anomaly_growth = anomalies.get('growth') if anomalies else None %}
       {% set anomaly_profit = anomalies.get('profitability') if anomalies else None %}
@@ -138,19 +203,19 @@
           {% for w in quant_warnings %}<li>{{ w }}</li>{% endfor %}
           {% if anomaly_growth %}<li>增长异常：{{ anomaly_growth }}</li>{% endif %}
           {% if anomaly_profit %}<li>盈利异常：{{ anomaly_profit }}</li>{% endif %}
-          {% if qual_notes %}<li>定性要点参考：{{ qual_notes }}</li>{% endif %}
         </ul>
       </div>
       {% endif %}
     </section>
 
     <section class="section">
-      <h2>风险与催化剂</h2>
-      <p>{{ risk_catalyst or '（待完善）' }}</p>
+      <h2>07 风险与催化剂</h2>
+      {% set refs = section_refs.get('risk_catalyst', []) %}
+      <p>{{ risk_catalyst or '（待完善）' }}{% if refs %}<span class="footnote-refs">{% for idx in refs %}<sup><a href="#footnote-{{ idx }}">[{{ idx }}]</a></sup>{% endfor %}</span>{% endif %}</p>
     </section>
 
     <section class="section">
-      <h2>数据异常与提示</h2>
+      <h2>08 数据异常与提示</h2>
       {% if anomalies %}
         <ul>
           <li>增长异常：{{ anomalies.get('growth') or '无' }}</li>
@@ -162,16 +227,17 @@
     </section>
 
     <section class="section">
-      <h2>复核摘要</h2>
+      <h2>09 复核摘要</h2>
       {% if review_report %}
-        <div>{{ review_report }}</div>
+        {% set refs = section_refs.get('review_report', []) %}
+        <div>{{ review_report }}{% if refs %}<span class="footnote-refs">{% for idx in refs %}<sup><a href="#footnote-{{ idx }}">[{{ idx }}]</a></sup>{% endfor %}</span>{% endif %}</div>
       {% else %}
         <p>（复核报告未生成或模型未配置）</p>
       {% endif %}
     </section>
 
     <section class="section">
-      <h2>QA 检查</h2>
+      <h2>10 QA 检查</h2>
       {% if qa_report %}
         <p>通过：<span class="tag {{ 'ok' if qa_report.passed else 'missing' }}">{{ '是' if qa_report.passed else '否' }}</span></p>
         <p>缺失叙事：{{ qa_report.missing_narratives or '无' }}</p>
@@ -212,11 +278,11 @@
     {% endif %}
 
     {% if footnotes %}
-    <section class="section">
+    <section class="section footnotes" id="references">
       <h2>参考资料</h2>
       <ul>
       {% for item in footnotes %}
-        <li>[{{ item.index }}] <a href="{{ item.url }}" target="_blank" rel="noopener">{{ item.url }}</a></li>
+        <li id="footnote-{{ item.index }}">[{{ item.index }}] <a href="{{ item.url }}" target="_blank" rel="noopener">{{ item.url }}</a></li>
       {% endfor %}
       </ul>
     </section>

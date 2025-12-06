@@ -210,7 +210,7 @@ def batch(
             context.workflow.persist_markdown(result["markdown_report"], output_md)
             console.print(f"Markdown report available at {output_md}")
             if pdf:
-                _render_pdf(output_md)
+                _render_pdf(output_md, console)
         if result.get("errors"):
             console.print(f"[yellow]Completed with errors for {tk}: {result['errors']}[/yellow]")
 

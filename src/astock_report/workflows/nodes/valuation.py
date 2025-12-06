@@ -33,7 +33,11 @@ def run(state: ReportState, context: WorkflowContext) -> ReportState:
     try:
         ratio_summary = ratios if isinstance(ratios, RatioSummary) else ratios
         overrides = state.get("valuation_overrides") or {}
-        state["valuation"] = context.valuation_engine.run(dataset, ratio_summary, overrides=overrides)
+        hints = state.get("valuation_hints") or {}
+        bundle = context.valuation_engine.run(dataset, ratio_summary, overrides=overrides, hints=hints)
+        state["valuation"] = bundle
+        if getattr(bundle, "warnings", None):
+            state["valuation_warnings"] = list(bundle.warnings)
     except Exception as exc:  # pylint: disable=broad-except
         errors.append(f"Valuation engine failed: {exc}")
     return state

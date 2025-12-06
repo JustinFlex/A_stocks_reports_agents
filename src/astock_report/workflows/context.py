@@ -11,6 +11,7 @@ from astock_report.domain.services.calculations import (
     RatioCalculator,
     ValuationEngine,
 )
+from astock_report.infrastructure.sector import SectorService
 from astock_report.infrastructure.data_providers.tushare_client import TuShareClient
 from astock_report.infrastructure.db.sqlite import SQLiteRepository
 from astock_report.infrastructure.llm.gemini_client import GeminiClient
@@ -23,6 +24,7 @@ class WorkflowContext:
     config: Config
     repository: SQLiteRepository
     tushare: Optional[TuShareClient]
+    sector_service: SectorService
     growth_calculator: GrowthCalculator
     ratio_calculator: RatioCalculator
     valuation_engine: ValuationEngine
